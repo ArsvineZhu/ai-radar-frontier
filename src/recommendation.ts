@@ -1,19 +1,65 @@
-import { FAST_COST_MULTIPLIER, QUOTA_WEEKLY_LIMITS } from "./config.js";
-import type { FastEstimator, FastEstimate } from "./radar.js";
 import {
-  analyze,
+  FAST_COST_MULTIPLIER,
+  IQ_MINIMUM,
+  IQ_QUALITY_TOLERANCE,
+  PLAN_LIMITS,
+  QUOTA_WEEKLY_LIMITS,
+} from "./config.js";
+import type { FastEstimate, FastEstimator } from "./radar.js";
+import {
+  analyzeParetoDiagnostics,
+  evaluateCandidateEligibility,
   evaluateRecords,
-  evaluateQuotaGate,
+  isValidRecord,
   scoreRecords,
   sortScoredRecords,
 } from "./scoring.js";
-import type { ModelRecord, ScoredRecord } from "./scoring.js";
+import type {
+  ModelRecord,
+  ScoredRecord,
+  StrategyKey,
+  SubscriptionKey,
+} from "./scoring.js";
+
+interface RecommendationExplanation {
+  winnerKey: string | null;
+  strategy: StrategyKey | string;
+  quotaGate: number;
+  qualityTolerance: number;
+  shortWindowUnquantified: boolean;
+  shortWindowHours: number | null;
+  fastEvidenceLevel: ScoredRecord["fastEvidenceLevel"] | null;
+  fastTimeKind: ScoredRecord["timeKind"] | null;
+}
+
+interface StrategyExclusions {
+  belowIqFloor: ScoredRecord[];
+  quotaUnknown: ScoredRecord[];
+  quotaOverLimit: ScoredRecord[];
+  fastEvidenceUnavailable: ModelRecord[];
+}
+
+interface StrategyDiagnostics {
+  paretoFrontier: string[];
+  paretoDominated: string[];
+  shortWindowUnquantified: boolean;
+  shortWindowHours: number | null;
+}
 
 export interface StrategyResult {
+  plan: SubscriptionKey | string;
+  strategy: StrategyKey | string;
+  winner: ScoredRecord | null;
+  orderedEligible: ScoredRecord[];
+  excluded: StrategyExclusions;
+  diagnostics: StrategyDiagnostics;
+  explanation: RecommendationExplanation;
+
+  // These aliases keep the UI migration small; Pareto values are diagnostics only.
   frontier: ScoredRecord[];
   dominated: ScoredRecord[];
-  quotaExcluded: ScoredRecord[];
   orderedFrontier: ScoredRecord[];
+  quotaExcluded: ScoredRecord[];
   quotaLimit: number;
   quotaOverLimitCount: number;
   quotaUnknownCount: number;
@@ -21,7 +67,7 @@ export interface StrategyResult {
   fastFrontierCount: number;
   fastExactCount: number;
   fastModelCount: number;
-  fastGenerationCount: number;
+  fastGroupCount: number;
   fastOmittedCount: number;
 }
 
@@ -34,12 +80,54 @@ function createFastCandidate(
     key: `${record.key}::fast`,
     mode: "fast",
     cost: record.cost * FAST_COST_MULTIPLIER,
-    minutes: record.minutes / estimate.value,
-    fastMultiplier: estimate.value,
-    fastMultiplierSource: estimate.sourceLabel,
-    fastEvidenceSource: estimate.source,
+    minutes: record.minutes / estimate.ratio,
+    fastMultiplier: estimate.ratio,
+    fastEvidenceLevel: estimate.evidenceLevel,
+    fastEvidenceSource: estimate.sourceLabel,
+    fastSampleCount: estimate.sampleCount,
+    fastAgeDays: estimate.ageDays,
+    fastNominalRatio: estimate.nominalRatio,
+    timeKind: estimate.timeKind,
     baseRecord: record,
-    index: record.index + 0.1,
+  };
+}
+
+function markEligibility(
+  records: ScoredRecord[],
+  strategyKey: string,
+): ScoredRecord[] {
+  return records.map((record) => {
+    const gate = evaluateCandidateEligibility(record, strategyKey);
+    return {
+      ...record,
+      quotaEligible: gate.eligible,
+      quotaZone: gate.zone,
+      quotaLimit: gate.limit,
+      quotaExclusionReason:
+        gate.reason === "quota-over-limit" || gate.reason === "quota-unknown"
+          ? gate.reason
+          : undefined,
+    };
+  });
+}
+
+function buildExplanation(
+  winner: ScoredRecord | null,
+  strategyKey: string,
+  subscriptionKey: string,
+  quotaLimit: number,
+): RecommendationExplanation {
+  const plan = PLAN_LIMITS[subscriptionKey] ?? PLAN_LIMITS.plus;
+  return {
+    winnerKey: winner?.key ?? null,
+    strategy: strategyKey,
+    quotaGate: quotaLimit,
+    qualityTolerance: IQ_QUALITY_TOLERANCE,
+    shortWindowUnquantified:
+      subscriptionKey === "plus" && plan.shortWindowCapacity === null,
+    shortWindowHours: plan.shortWindowHours,
+    fastEvidenceLevel: winner?.fastEvidenceLevel ?? null,
+    fastTimeKind: winner?.timeKind ?? null,
   };
 }
 
@@ -50,75 +138,94 @@ export function buildStrategyResult(
   subscriptionKey: string,
   includeFast: boolean,
 ): StrategyResult {
+  const validRecords = standardRecords.filter(isValidRecord);
+  const eligibleQualityRecords = validRecords.filter(
+    (record) => record.qualityIq >= IQ_MINIMUM,
+  );
   const fastCandidates: ModelRecord[] = [];
+  const fastEvidenceUnavailable: ModelRecord[] = [];
 
-  for (const standard of includeFast ? standardRecords : []) {
-    const estimate = fastEstimator.estimate(standard);
-    if (!estimate) {
-      continue;
+  if (includeFast) {
+    for (const standard of eligibleQualityRecords) {
+      const estimate = fastEstimator.estimate(standard);
+      if (!estimate) {
+        fastEvidenceUnavailable.push(standard);
+        continue;
+      }
+      fastCandidates.push(createFastCandidate(standard, estimate));
     }
-    fastCandidates.push(createFastCandidate(standard, estimate));
   }
 
-  const evaluatedCandidates = evaluateRecords(
-    [...standardRecords, ...fastCandidates],
+  const evaluated = evaluateRecords(
+    [...validRecords, ...fastCandidates],
     subscriptionKey,
   );
   const quotaLimit =
     QUOTA_WEEKLY_LIMITS[strategyKey] ?? QUOTA_WEEKLY_LIMITS.effectiveness;
-  const quotaMarkedCandidates = evaluatedCandidates.map((record) => {
-    const gate = evaluateQuotaGate(record, strategyKey);
-    return {
-      ...record,
-      quotaEligible: gate.eligible,
-      quotaZone: gate.zone,
-      quotaLimit: gate.limit,
-      quotaExclusionReason: gate.reason,
-    };
-  });
-  const eligibleCandidates = quotaMarkedCandidates.filter(
-    (record) => record.quotaEligible,
+  const marked = markEligibility(evaluated, strategyKey);
+  const belowIqFloor = marked.filter((record) => record.qualityIq < IQ_MINIMUM);
+  const aboveIqFloor = marked.filter(
+    (record) => record.qualityIq >= IQ_MINIMUM,
   );
-  const quotaExcluded = quotaMarkedCandidates
-    .filter((record) => !record.quotaEligible)
-    .map((record) => ({ ...record, strategyScore: Number.NaN }));
-  const provisionalAnalysis = analyze(eligibleCandidates);
-  const scoredCandidates = scoreRecords(
-    eligibleCandidates,
-    strategyKey,
-    provisionalAnalysis.frontier,
+  const eligible = aboveIqFloor.filter((record) => record.quotaEligible);
+  const quotaUnknown = aboveIqFloor.filter(
+    (record) => record.quotaExclusionReason === "quota-unknown",
   );
-  const analysis = analyze(scoredCandidates);
-  const eligibleFast = eligibleCandidates.filter(
-    (record) => record.mode === "fast",
+  const quotaOverLimit = aboveIqFloor.filter(
+    (record) => record.quotaExclusionReason === "quota-over-limit",
   );
+  const scored = scoreRecords(eligible, strategyKey);
+  const orderedEligible = sortScoredRecords(scored, strategyKey);
+  const pareto = analyzeParetoDiagnostics(scored);
+  const winner = orderedEligible[0] ?? null;
+  const plan = PLAN_LIMITS[subscriptionKey] ?? PLAN_LIMITS.plus;
+  const excluded: StrategyExclusions = {
+    belowIqFloor,
+    quotaUnknown,
+    quotaOverLimit,
+    fastEvidenceUnavailable,
+  };
+  const diagnostics: StrategyDiagnostics = {
+    paretoFrontier: pareto.frontier.map((record) => record.key),
+    paretoDominated: pareto.dominated.map((record) => record.key),
+    shortWindowUnquantified:
+      subscriptionKey === "plus" && plan.shortWindowCapacity === null,
+    shortWindowHours: plan.shortWindowHours,
+  };
 
   return {
-    ...analysis,
-    quotaExcluded,
-    orderedFrontier: sortScoredRecords(analysis.frontier, strategyKey),
+    plan: subscriptionKey,
+    strategy: strategyKey,
+    winner,
+    orderedEligible,
+    excluded,
+    diagnostics,
+    explanation: buildExplanation(
+      winner,
+      strategyKey,
+      subscriptionKey,
+      quotaLimit,
+    ),
+    frontier: pareto.frontier,
+    dominated: pareto.dominated,
+    orderedFrontier: orderedEligible,
+    quotaExcluded: [...quotaUnknown, ...quotaOverLimit],
     quotaLimit,
-    quotaOverLimitCount: quotaExcluded.filter(
-      (record) => record.quotaExclusionReason === "over-limit",
-    ).length,
-    quotaUnknownCount: quotaExcluded.filter(
-      (record) => record.quotaExclusionReason === "unavailable",
-    ).length,
-    fastCandidateCount: eligibleFast.length,
-    fastFrontierCount: analysis.frontier.filter(
+    quotaOverLimitCount: quotaOverLimit.length,
+    quotaUnknownCount: quotaUnknown.length,
+    fastCandidateCount: fastCandidates.length,
+    fastFrontierCount: pareto.frontier.filter(
       (record) => record.mode === "fast",
     ).length,
-    fastExactCount: eligibleFast.filter(
-      (record) => record.fastEvidenceSource === "exact",
+    fastExactCount: fastCandidates.filter(
+      (record) => record.fastEvidenceLevel === "exact",
     ).length,
-    fastModelCount: eligibleFast.filter(
-      (record) => record.fastEvidenceSource === "model",
+    fastModelCount: fastCandidates.filter(
+      (record) => record.fastEvidenceLevel === "model",
     ).length,
-    fastGenerationCount: eligibleFast.filter(
-      (record) => record.fastEvidenceSource === "generation",
+    fastGroupCount: fastCandidates.filter(
+      (record) => record.fastEvidenceLevel === "fastGroup",
     ).length,
-    fastOmittedCount: includeFast
-      ? standardRecords.length - fastCandidates.length
-      : 0,
+    fastOmittedCount: includeFast ? fastEvidenceUnavailable.length : 0,
   };
 }

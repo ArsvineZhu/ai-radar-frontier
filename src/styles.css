@@ -326,7 +326,6 @@
   top: calc(100% + 8px);
   right: 0;
   width: max-content;
-  min-width: 168px;
   max-width: calc(100vw - 24px);
   padding: 7px;
   border: 1px solid #404040;
@@ -915,6 +914,8 @@
 }
 
 .cr-card-foot {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: flex-end;
 }
 

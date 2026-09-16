@@ -1,0 +1,14 @@
+{
+  "excluded": [
+    {
+      "source": "research/raw/iq-history.json",
+      "url": "https://api.codexradar.com/api/v1/iq-history",
+      "reason": "The response is IQ-only and contains full_series/latest_projection keys; it does not expose the same equal_latest_3 cost/minutes panel semantics. It remains preserved in raw and history-long.csv."
+    },
+    {
+      "source": "research/normalized/fast-runs.csv",
+      "reason": "One row contains an HTML JavaScript template placeholder rather than a model/effort DOM measurement; it is excluded from Fast statistics as invalid parser output, not as an outlier.",
+      "rows_excluded": 1
+    }
+  ]
+}

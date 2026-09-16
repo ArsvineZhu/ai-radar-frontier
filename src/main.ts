@@ -2,6 +2,8 @@ import {
   DEFAULT_STRATEGY,
   HOST_ID,
   IQ_MINIMUM,
+  GRID_PREVIEW_CARD_LIMIT,
+  PLAN_LIMITS,
   SELECTORS,
   SOURCE_STATUS_PATTERNS,
   STRATEGY_KEYS,
@@ -103,15 +105,21 @@ function syncStrategyControl(
   const strategy = getStrategy(strategies, state.sortStrategy);
   const subscription = getSubscription(subscriptions, state.subscription);
   const multiplier = copy.subscriptionMultipliers[state.subscription] || "1×";
+  const selectedLabel = `${multiplier} ${strategy.label}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
 
   if (value) {
-    value.textContent = `${multiplier} ${strategy.label}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
+    value.textContent = selectedLabel;
   }
   if (trigger instanceof HTMLButtonElement) {
     trigger.setAttribute(
       "aria-label",
-      `${copy.sort}: ${subscription.label}, ${strategy.label}`,
+      `${copy.sort}: ${subscription.label}, ${selectedLabel}`,
     );
+    const plan = PLAN_LIMITS[state.subscription] || PLAN_LIMITS.plus;
+    trigger.title =
+      state.subscription === "plus" && plan.shortWindowHours !== null
+        ? copy.shortWindowNote(plan.shortWindowHours)
+        : "";
   }
   options.forEach((option) => {
     const sortSelected = option.dataset.crSortOption === state.sortStrategy;
@@ -191,17 +199,7 @@ function syncExpandControl(
   }
 }
 
-function updateDisclosure(
-  state,
-  copy,
-  strategy,
-  dominated,
-  quotaExcluded,
-  invalidCount,
-  lowIqCount,
-  totalCount,
-  fastSummary,
-) {
+function updateDisclosure(state, copy, result, invalidCount, totalCount) {
   const disclosure = getElement<HTMLDetailsElement>(
     state,
     SELECTORS.disclosure,
@@ -218,7 +216,12 @@ function updateDisclosure(
   clearDisclosureAnimation(state.animations);
   resetDisclosureStyles(disclosure, body);
   disclosure.hidden = false;
-  const excludedRecords = [...dominated, ...quotaExcluded];
+  const { excluded } = result;
+  const excludedRecords = [
+    ...excluded.belowIqFloor,
+    ...excluded.quotaUnknown,
+    ...excluded.quotaOverLimit,
+  ];
   label.textContent =
     excludedRecords.length > 0
       ? copy.excluded(excludedRecords.length)
@@ -235,7 +238,12 @@ function updateDisclosure(
   if (excludedRecords.length > 0) {
     const list = makeElement("ul", "cr-exclusion-list");
     for (const record of excludedRecords) {
-      list.append(renderExclusionItem(record, copy));
+      const reason = excluded.belowIqFloor.includes(record)
+        ? "below-iq-floor"
+        : excluded.quotaUnknown.includes(record)
+          ? "quota-unknown"
+          : "quota-over-limit";
+      list.append(renderExclusionItem(record, copy, reason));
     }
     content.append(list);
   } else {
@@ -246,38 +254,42 @@ function updateDisclosure(
     );
   }
 
-  if (fastSummary?.fastCandidateCount > 0) {
+  if (result.fastCandidateCount > 0 || result.fastOmittedCount > 0) {
     notes.append(
       makeElement(
         "p",
         "cr-exclusion-note",
         copy.fastNote({
-          included: fastSummary.fastCandidateCount,
-          exact: fastSummary.fastExactCount,
-          model: fastSummary.fastModelCount,
-          generation: fastSummary.fastGenerationCount,
-          omitted: fastSummary.fastOmittedCount,
-          frontier: fastSummary.fastFrontierCount,
+          included: result.fastCandidateCount,
+          exact: result.fastExactCount,
+          model: result.fastModelCount,
+          group: result.fastGroupCount,
+          omitted: result.fastOmittedCount,
+          frontier: result.fastFrontierCount,
         }),
       ),
     );
   }
-  if (fastSummary?.quotaExcluded.length > 0) {
+  if (result.quotaExcluded.length > 0) {
     notes.append(
       makeElement(
         "p",
         "cr-exclusion-note",
         copy.quotaGateNote({
-          overLimit: fastSummary.quotaOverLimitCount,
-          unknown: fastSummary.quotaUnknownCount,
-          limit: fastSummary.quotaLimit,
+          overLimit: result.quotaOverLimitCount,
+          unknown: result.quotaUnknownCount,
+          limit: result.quotaLimit,
         }),
       ),
     );
   }
-  if (lowIqCount > 0) {
+  if (excluded.belowIqFloor.length > 0) {
     notes.append(
-      makeElement("p", "cr-exclusion-note", copy.lowIqNote(lowIqCount)),
+      makeElement(
+        "p",
+        "cr-exclusion-note",
+        copy.lowIqNote(excluded.belowIqFloor.length),
+      ),
     );
   }
   if (invalidCount > 0) {
@@ -285,12 +297,25 @@ function updateDisclosure(
       makeElement("p", "cr-exclusion-note", copy.invalidNote(invalidCount)),
     );
   }
-  if (
-    totalCount > 0 &&
-    excludedRecords.length === 0 &&
-    lowIqCount === 0 &&
-    invalidCount === 0
-  ) {
+  if (result.diagnostics.shortWindowUnquantified) {
+    notes.append(
+      makeElement(
+        "p",
+        "cr-exclusion-note",
+        copy.shortWindowNote(result.diagnostics.shortWindowHours),
+      ),
+    );
+  }
+  if (result.diagnostics.paretoDominated.length > 0) {
+    notes.append(
+      makeElement(
+        "p",
+        "cr-exclusion-note",
+        copy.paretoNote(result.diagnostics.paretoDominated.length),
+      ),
+    );
+  }
+  if (totalCount > 0 && excludedRecords.length === 0 && invalidCount === 0) {
     notes.append(makeElement("p", "cr-exclusion-note", copy.dominanceRule));
   }
   notes.hidden = notes.childElementCount === 0;
@@ -428,16 +453,10 @@ function renderData(
   const records = snapshot.records;
   const validRecords = records.filter(isValidRecord);
   const invalidCount = records.length - validRecords.length;
-  const lowIqCount = validRecords.filter(
-    (record) => record.iq < IQ_MINIMUM,
-  ).length;
-  const standardRecords = validRecords.filter(
-    (record) => record.iq >= IQ_MINIMUM,
-  );
   const strategyResults: Record<string, StrategyResult> = {};
   for (const strategyKey of STRATEGY_KEYS) {
     strategyResults[strategyKey] = buildStrategyResult(
-      standardRecords,
+      validRecords,
       snapshot.fastEstimator,
       strategyKey,
       state.subscription,
@@ -450,11 +469,13 @@ function renderData(
     : DEFAULT_STRATEGY;
   state.sortStrategy = strategyKey;
   const currentResult = strategyResults[strategyKey];
-  const { frontier, dominated, quotaExcluded } = currentResult;
-  const orderedFrontier = currentResult.orderedFrontier;
+  const orderedEligible = currentResult.orderedEligible;
+  const displayedEligible = state.expanded
+    ? orderedEligible
+    : orderedEligible.slice(0, GRID_PREVIEW_CARD_LIMIT);
   const strategyWinners = new Map<string, string[]>();
   for (const key of STRATEGY_KEYS) {
-    const winner = strategyResults[key].orderedFrontier[0];
+    const winner = strategyResults[key].winner;
     if (winner) {
       const labels = strategyWinners.get(winner.key) || [];
       labels.push(strategies[key].winnerLabel);
@@ -464,14 +485,14 @@ function renderData(
 
   const strategy = strategies[strategyKey];
   const ranks = new Map(
-    orderedFrontier.map((record, index) => [record.key, index + 1]),
+    orderedEligible.map((record, index) => [record.key, index + 1]),
   );
   root.dataset.state = "ready";
   root.removeAttribute("aria-busy");
   syncControls(state, copy, strategies, subscriptions);
 
   const nextChildren = [];
-  for (const record of orderedFrontier) {
+  for (const record of displayedEligible) {
     nextChildren.push(
       renderCard(
         record,
@@ -485,9 +506,15 @@ function renderData(
       ),
     );
   }
-  if (frontier.length === 0) {
-    const noModels = standardRecords.length === 0;
-    const quotaBlocked = !noModels && quotaExcluded.length > 0;
+  if (orderedEligible.length === 0) {
+    const noModels =
+      validRecords.length > 0 &&
+      validRecords.every((record) => record.qualityIq < IQ_MINIMUM);
+    const quotaBlocked =
+      !noModels &&
+      currentResult.excluded.quotaUnknown.length +
+        currentResult.excluded.quotaOverLimit.length >
+        0;
     const emptyTitle = noModels
       ? copy.noModelsTitle
       : quotaBlocked
@@ -508,7 +535,7 @@ function renderData(
       : measureGridViewport(grid);
   const fallenWinnerLabels = [];
   for (const [winnerKey, labels] of strategyWinners) {
-    const winnerIndex = orderedFrontier.findIndex(
+    const winnerIndex = orderedEligible.findIndex(
       (record) => record.key === winnerKey,
     );
     if (winnerIndex >= viewportMetrics.visibleCount) {
@@ -516,21 +543,11 @@ function renderData(
     }
   }
   syncExpandControl(state, copy, viewportMetrics, fallenWinnerLabels);
-  updateDisclosure(
-    state,
-    copy,
-    strategy,
-    dominated,
-    quotaExcluded,
-    invalidCount,
-    lowIqCount,
-    records.length,
-    currentResult,
-  );
+  updateDisclosure(state, copy, currentResult, invalidCount, records.length);
   announce(
     state,
     copy.announced(
-      frontier.length,
+      orderedEligible.length,
       strategy.label,
       currentResult.fastCandidateCount,
     ),

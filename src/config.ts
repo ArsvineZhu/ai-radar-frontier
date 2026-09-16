@@ -1,4 +1,4 @@
-export const VERSION = "1.0.1";
+export const VERSION = "1.0.2";
 export const HOST_ID = "ai-radar-frontier-userscript";
 
 export const SELECTORS = Object.freeze({
@@ -46,37 +46,49 @@ export const DEFAULT_STRATEGY = "quality";
 const DEFAULT_FAST_ENABLED = true;
 export const IQ_MINIMUM = 70;
 export const IQ_TARGET = 100;
-export const IQ_DEFICIT_SCALE = 15;
-export const IQ_SURPLUS_SCALE = 10;
-export const IQ_QUALITY_TOLERANCE = 2;
+export const IQ_QUALITY_TOLERANCE = 4;
+export const IQ_ACCEPTABLE = IQ_TARGET - IQ_QUALITY_TOLERANCE;
 export const FAST_COST_MULTIPLIER = 2.5;
 export const FAST_MODEL_ID = "gpt-6-astra";
 export const PLAN_MULTIPLIERS = Object.freeze({ plus: 1, pro5: 5, pro20: 20 });
-export const RADAR_ENDPOINTS = Object.freeze({
-  efficiency: "/data/intelligence-efficiency.json",
-  fastHistory: "/data/fast-radar-history.json",
-  insights: "/api/radar-insights",
-  ratings: "/api/model-ratings?history=14",
+export const PLAN_LIMITS = Object.freeze({
+  plus: Object.freeze({
+    multiplier: 1,
+    shortWindowHours: 5,
+    shortWindowCapacity: null,
+  }),
+  pro5: Object.freeze({
+    multiplier: 5,
+    shortWindowHours: null,
+    shortWindowCapacity: null,
+  }),
+  pro20: Object.freeze({
+    multiplier: 20,
+    shortWindowHours: null,
+    shortWindowCapacity: null,
+  }),
 });
-export const HISTORY_WINDOW_SIZE = 18;
-export const HISTORY_MIN_POINTS = 3;
-export const UNCERTAINTY_PENALTY_LIMIT = 2;
+export const RADAR_ENDPOINTS = Object.freeze({
+  efficiency:
+    "https://api.codexradar.com/api/v1/intelligence-efficiency?benchmark=deep-swe",
+  fastHistory: "/data/fast-radar-history.json",
+});
 export const FAST_MEASUREMENT_MAX_AGE_DAYS = 30;
-export const COMMUNITY_MIN_RATING_COUNT = 15;
 export const ECONOMY_MAX_MINUTES = 45;
-export const ECONOMY_TIME_WEIGHT = 0.15;
-export const BALANCED_COST_WEIGHT = 1;
-export const BALANCED_TIME_WEIGHT = 1;
-export const BALANCED_QUALITY_WEIGHT = 1;
+export const BALANCED_QUALITY_BONUS_WEIGHT = 0.15;
+export const BALANCED_QUOTA_WEIGHT = 0.5;
+export const BALANCED_TIME_WEIGHT = 0.5;
+export const BALANCED_TIME_REFERENCE_MINUTES = 10;
+export const SPEED_TIE_REL = 0.05;
 export const QUOTA_COMFORTABLE_LIMIT = 0.025;
-export const QUOTA_EXPENSIVE_LIMIT = 0.05;
+const QUOTA_EXPENSIVE_LIMIT = 0.05;
 export const QUOTA_WEEKLY_LIMITS = Object.freeze({
   budget: QUOTA_COMFORTABLE_LIMIT,
   effectiveness: 0.04,
   quality: QUOTA_EXPENSIVE_LIMIT,
   speed: QUOTA_EXPENSIVE_LIMIT,
 });
-export const FAST_GENERATION_MIN_MEASUREMENTS = 3;
+export const FAST_GROUP_MIN_MEASUREMENTS = 6;
 export const MODEL_CATALOG = Object.freeze({
   "gpt-6-astra": Object.freeze({
     label: "Astra",
@@ -116,6 +128,7 @@ export const MODEL_CATALOG = Object.freeze({
 });
 export const SUPPORTED_MODEL_IDS = Object.freeze(Object.keys(MODEL_CATALOG));
 export const GRID_MIN_VISIBLE_CARDS = 4;
+export const GRID_PREVIEW_CARD_LIMIT = 12;
 export const GRID_PREVIEW_HEIGHT = 72;
 export const STRATEGY_KEYS = Object.freeze([
   "quality",

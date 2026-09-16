@@ -1,42 +1,35 @@
 import {
-  FAST_GENERATION_MIN_MEASUREMENTS,
+  FAST_GROUP_MIN_MEASUREMENTS,
   FAST_MEASUREMENT_MAX_AGE_DAYS,
   FAST_MODEL_ID,
-  HISTORY_MIN_POINTS,
-  HISTORY_WINDOW_SIZE,
   MODEL_CATALOG,
   RADAR_ENDPOINTS,
   SELECTORS,
   SUPPORTED_MODEL_IDS,
-  UNCERTAINTY_PENALTY_LIMIT,
 } from "./config.js";
 import type { Copy } from "./i18n.js";
-import type {
-  FastEvidenceSource,
-  ModelRecord,
-  StabilityStatus,
-} from "./scoring.js";
+import type { FastEvidenceLevel, ModelRecord } from "./scoring.js";
 
 interface RawObject {
   [key: string]: unknown;
 }
 
-interface HistoryObservation {
-  timestamp: number;
-  iq: number;
-  sampleCount: number | null;
-}
-
-interface FastMeasurement {
+export interface FastMeasurement {
   model: string;
   effort: string | null;
   ratio: number;
   measuredAt: number | null;
+  sampleCount: number | null;
+  validPairs?: number | null;
 }
 
 export interface FastEstimate {
-  value: number;
-  source: FastEvidenceSource;
+  ratio: number;
+  evidenceLevel: FastEvidenceLevel;
+  sampleCount: number;
+  ageDays: number | null;
+  nominalRatio: number;
+  timeKind: "transferred-e2e-estimate";
   sourceLabel: string;
 }
 
@@ -91,9 +84,7 @@ function parseFirstNumber(value: unknown): number {
 }
 
 function median(values: number[]): number | null {
-  if (values.length === 0) {
-    return null;
-  }
+  if (values.length === 0) return null;
   const sorted = values.slice().sort((left, right) => left - right);
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0
@@ -102,16 +93,12 @@ function median(values: number[]): number | null {
 }
 
 function percentile(values: number[], fraction: number): number | null {
-  if (values.length === 0) {
-    return null;
-  }
+  if (values.length === 0) return null;
   const sorted = values.slice().sort((left, right) => left - right);
   const index = (sorted.length - 1) * fraction;
   const lower = Math.floor(index);
   const upper = Math.ceil(index);
-  if (lower === upper) {
-    return sorted[lower];
-  }
+  if (lower === upper) return sorted[lower];
   return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower);
 }
 
@@ -128,9 +115,7 @@ function normalizePoint(point: unknown): {
   sampleCount: number | null;
 } | null {
   const raw = asObject(point);
-  if (!raw) {
-    return null;
-  }
+  if (!raw) return null;
   const model = asString(raw.model).toLowerCase();
   const effort = asString(raw.effort).toLowerCase();
   const iq = asNumber(raw.iq);
@@ -153,155 +138,8 @@ function normalizePoint(point: unknown): {
   return { model, effort, iq, cost, minutes, sampleCount };
 }
 
-function buildInsightIqMap(payload: unknown): Map<string, number> {
-  const map = new Map<string, number>();
-  const root = asObject(payload);
-  for (const item of asArray(root?.comprehensive_points)) {
-    const point = asObject(item);
-    if (!point) {
-      continue;
-    }
-    const model = asString(point.model).toLowerCase();
-    const effort = asString(point.effort).toLowerCase();
-    const softwareIq = asNumber(point.software_iq);
-    if (model && effort && softwareIq !== null) {
-      map.set(keyFor(model, effort), softwareIq);
-    }
-  }
-  return map;
-}
-
-function buildHistoryMap(payload: unknown): Map<string, HistoryObservation[]> {
-  const map = new Map<string, HistoryObservation[]>();
-  const root = asObject(payload);
-  for (const snapshot of asArray(root?.history)) {
-    const snapshotObject = asObject(snapshot);
-    const timestamp = parseTimestamp(snapshotObject?.at);
-    if (!snapshotObject || timestamp === null) {
-      continue;
-    }
-    for (const item of asArray(snapshotObject.points)) {
-      const point = normalizePoint(item);
-      if (!point) {
-        continue;
-      }
-      const key = keyFor(point.model, point.effort);
-      const observations = map.get(key) || [];
-      observations.push({
-        timestamp,
-        iq: point.iq,
-        sampleCount: point.sampleCount,
-      });
-      map.set(key, observations);
-    }
-  }
-  for (const observations of map.values()) {
-    observations.sort((left, right) => left.timestamp - right.timestamp);
-  }
-  return map;
-}
-
-function classifyStability(
-  observations: HistoryObservation[],
-): StabilityStatus {
-  if (observations.length < HISTORY_MIN_POINTS * 2) {
-    return "unknown";
-  }
-  const recent = median(
-    observations.slice(-HISTORY_MIN_POINTS).map((point) => point.iq),
-  );
-  const previous = median(
-    observations
-      .slice(-HISTORY_MIN_POINTS * 2, -HISTORY_MIN_POINTS)
-      .map((point) => point.iq),
-  );
-  if (recent === null || previous === null) {
-    return "unknown";
-  }
-  const delta = recent - previous;
-  if (delta <= -2) {
-    return "degrading";
-  }
-  if (delta >= 2) {
-    return "recovering";
-  }
-  return "stable";
-}
-
-function stabilizeIq(
-  currentIq: number,
-  observations: HistoryObservation[],
-  sampleCount: number | null,
-): {
-  qualityIq: number;
-  historyCenter: number | null;
-  uncertainty: number;
-  stability: StabilityStatus;
-} {
-  const recent = observations.slice(-HISTORY_WINDOW_SIZE);
-  const historyCenter = median(recent.map((point) => point.iq));
-  const spread =
-    historyCenter === null
-      ? 0
-      : median(recent.map((point) => Math.abs(point.iq - historyCenter))) || 0;
-  const samplePenalty = Math.min(
-    UNCERTAINTY_PENALTY_LIMIT,
-    8 / Math.sqrt(Math.max(sampleCount || 1, 1)),
-  );
-  const volatilityPenalty = Math.min(UNCERTAINTY_PENALTY_LIMIT, spread * 0.15);
-  const uncertainty = Math.min(
-    UNCERTAINTY_PENALTY_LIMIT,
-    samplePenalty + volatilityPenalty,
-  );
-  return {
-    qualityIq: currentIq,
-    historyCenter,
-    uncertainty,
-    stability: classifyStability(recent),
-  };
-}
-
-function buildCommunityMap(
-  payload: unknown,
-): Map<string, { average: number; count: number }> {
-  const map = new Map<string, { average: number; count: number }>();
-  const root = asObject(payload);
-  for (const item of asArray(root?.models)) {
-    const point = asObject(item);
-    const id = asString(point?.id).toLowerCase();
-    const average = asNumber(point?.average);
-    const count = asNumber(point?.count);
-    if (id && average !== null && count !== null) {
-      map.set(id, { average, count });
-    }
-  }
-  return map;
-}
-
-function buildQuotaMap(root: HTMLElement | null): Map<string, number> {
-  const map = new Map<string, number>();
-  if (!root) {
-    return map;
-  }
-  const familySelectors = {
-    astra: ".quota-radar-current-card-astra",
-    sol: ".quota-radar-current-card-sol",
-    terra: ".quota-radar-current-card-terra",
-    luna: ".quota-radar-current-card-luna",
-  };
-  for (const [family, selector] of Object.entries(familySelectors)) {
-    const value = parseFirstNumber(
-      root.querySelector(`${selector} ${SELECTORS.quotaValue}`)?.textContent,
-    );
-    if (Number.isFinite(value) && value > 0) {
-      map.set(family, value);
-    }
-  }
-  return map;
-}
-
-function normalizeModelId(family: string): string | null {
-  const normalized = family.toLowerCase().trim();
+function normalizeModelId(value: string): string | null {
+  const normalized = value.toLowerCase().trim();
   if (normalized === "astra") return "gpt-6-astra";
   if (normalized === "sol") return "gpt-5.6-sol";
   if (normalized === "terra") return "gpt-5.6-terra";
@@ -316,14 +154,12 @@ function readFastRatio(entry: RawObject | null): number | null {
     return null;
   }
   const ratio = standard / fast;
-  return ratio > 1 ? ratio : null;
+  return ratio > 0 ? ratio : null;
 }
 
 function readFastFallback(root: HTMLElement | null): RawObject | null {
   const fallback = root?.querySelector(SELECTORS.fastHistoryFallback);
-  if (!fallback?.textContent) {
-    return null;
-  }
+  if (!fallback?.textContent) return null;
   try {
     return asObject(JSON.parse(fallback.textContent));
   } catch {
@@ -331,11 +167,51 @@ function readFastFallback(root: HTMLElement | null): RawObject | null {
   }
 }
 
+function readCurrentPairCount(root: HTMLElement | null): number | null {
+  const text = root?.querySelector(".fast-radar-explain p")?.textContent ?? "";
+  const match = text.match(
+    /Standard\s+(\d+)\s*(?:次|times|runs?)[\s\S]*?Fast\s+(\d+)\s*(?:次|times|runs?)/i,
+  );
+  if (!match) return null;
+  const standard = Number(match[1]);
+  const fast = Number(match[2]);
+  return Number.isFinite(standard) && Number.isFinite(fast)
+    ? Math.min(standard, fast)
+    : null;
+}
+
+function runPairCount(run: RawObject): number | null {
+  return asNumber(run.valid_pairs);
+}
+
+function runSampleCount(run: RawObject): number | null {
+  return asNumber(run.sample_count) ?? runPairCount(run);
+}
+
+function fallbackPairCount(
+  fallback: RawObject | null,
+  model: string,
+  effort: string,
+): number | null {
+  for (const item of asArray(fallback?.runs)) {
+    const run = asObject(item);
+    if (!run) continue;
+    const runModel = normalizeModelId(asString(run.model));
+    const runEffort = asString(run.effort).toLowerCase();
+    if (runModel === model && runEffort === effort) {
+      return runPairCount(run);
+    }
+  }
+  return null;
+}
+
 function readFastMeasurements(
   root: HTMLElement | null,
   payload: unknown,
 ): FastMeasurement[] {
   const measurements: FastMeasurement[] = [];
+  const fallback = readFastFallback(root);
+  const currentPairCount = readCurrentPairCount(root);
   if (root) {
     for (const row of root.querySelectorAll<HTMLElement>(
       SELECTORS.fastEffort,
@@ -344,14 +220,19 @@ function readFastMeasurements(
       const ratio = parseFirstNumber(
         row.querySelector(SELECTORS.fastE2e)?.textContent,
       );
-      if (effort && Number.isFinite(ratio) && ratio > 1) {
-        measurements.push({
-          model: FAST_MODEL_ID,
-          effort,
-          ratio,
-          measuredAt: null,
-        });
-      }
+      if (!effort || !Number.isFinite(ratio) || ratio <= 0) continue;
+      measurements.push({
+        model: FAST_MODEL_ID,
+        effort,
+        ratio,
+        measuredAt: null,
+        sampleCount:
+          fallbackPairCount(fallback, FAST_MODEL_ID, effort) ??
+          currentPairCount,
+        validPairs:
+          fallbackPairCount(fallback, FAST_MODEL_ID, effort) ??
+          currentPairCount,
+      });
     }
   }
 
@@ -359,12 +240,10 @@ function readFastMeasurements(
   const historyRoot =
     apiRoot && asArray(apiRoot.runs).length > 0
       ? apiRoot
-      : (readFastFallback(root) ?? apiRoot);
+      : (fallback ?? apiRoot);
   for (const item of asArray(historyRoot?.runs)) {
     const run = asObject(item);
-    if (!run) {
-      continue;
-    }
+    if (!run) continue;
     const measuredAt = parseTimestamp(run.measured_at);
     const runModel = normalizeModelId(asString(run.model));
     const runEffort = asString(run.effort).toLowerCase() || null;
@@ -372,63 +251,98 @@ function readFastMeasurements(
     for (const [family, value] of Object.entries(models || {})) {
       const model = runModel || normalizeModelId(family);
       const ratio = readFastRatio(asObject(value));
-      if (model && ratio !== null) {
-        measurements.push({ model, effort: runEffort, ratio, measuredAt });
-      }
+      if (!model || ratio === null) continue;
+      measurements.push({
+        model,
+        effort: runEffort,
+        ratio,
+        measuredAt,
+        sampleCount: runSampleCount(run),
+        validPairs: runPairCount(run),
+      });
     }
   }
   return measurements;
 }
 
-function createFastEstimator(
+function measurementSampleCount(measurements: FastMeasurement[]): number {
+  const known = measurements
+    .map((measurement) => measurement.validPairs ?? measurement.sampleCount)
+    .filter((value): value is number => value !== null && value > 0);
+  return known.length > 0
+    ? known.reduce((sum, value) => sum + value, 0)
+    : measurements.length;
+}
+
+function ageDays(
+  measurements: FastMeasurement[],
+  referenceAt: number | null,
+): number | null {
+  const dated = measurements
+    .map((measurement) => measurement.measuredAt)
+    .filter((value): value is number => value !== null);
+  if (referenceAt === null || dated.length === 0) return null;
+  return Math.max(0, (referenceAt - Math.min(...dated)) / 86_400_000);
+}
+
+function createEstimate(
+  ratio: number,
+  evidenceLevel: FastEvidenceLevel,
+  measurements: FastMeasurement[],
+  nominalRatio: number,
+  sourceLabel: string,
+  referenceAt: number | null,
+): FastEstimate {
+  return {
+    ratio: Math.min(nominalRatio, ratio),
+    evidenceLevel,
+    sampleCount: measurementSampleCount(measurements),
+    ageDays: ageDays(measurements, referenceAt),
+    nominalRatio,
+    timeKind: "transferred-e2e-estimate",
+    sourceLabel,
+  };
+}
+
+export function createFastEstimator(
   measurements: FastMeasurement[],
   copy: Copy,
   referenceAt: number | null,
 ): FastEstimator {
   const datedMeasurements = measurements
     .map((measurement) => measurement.measuredAt)
-    .filter((timestamp): timestamp is number => timestamp !== null);
+    .filter((value): value is number => value !== null);
   const freshnessReference =
     referenceAt ??
     (datedMeasurements.length > 0 ? Math.max(...datedMeasurements) : null);
   const freshnessCutoff =
     freshnessReference === null
       ? null
-      : freshnessReference -
-        FAST_MEASUREMENT_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+      : freshnessReference - FAST_MEASUREMENT_MAX_AGE_DAYS * 86_400_000;
   const freshMeasurements = measurements.filter(
     (measurement) =>
       measurement.measuredAt === null ||
-      freshnessCutoff === null ||
-      measurement.measuredAt >= freshnessCutoff,
+      (freshnessCutoff !== null && measurement.measuredAt >= freshnessCutoff),
   );
-  const exact = new Map<string, number[]>();
-  const byModel = new Map<string, number[]>();
-  const byGeneration = new Map<string, number[]>();
+  const exact = new Map<string, FastMeasurement[]>();
+  const byModel = new Map<string, FastMeasurement[]>();
+  const byGroup = new Map<string, FastMeasurement[]>();
 
   for (const measurement of freshMeasurements) {
-    const modelValues = byModel.get(measurement.model) || [];
-    modelValues.push(measurement.ratio);
+    const modelValues = byModel.get(measurement.model) ?? [];
+    modelValues.push(measurement);
     byModel.set(measurement.model, modelValues);
     if (measurement.effort) {
       const key = keyFor(measurement.model, measurement.effort);
-      const exactValues = exact.get(key) || [];
-      exactValues.push(measurement.ratio);
+      const exactValues = exact.get(key) ?? [];
+      exactValues.push(measurement);
       exact.set(key, exactValues);
     }
     const catalog = MODEL_CATALOG[measurement.model];
     if (catalog?.fastGroup && catalog.nominalFastSpeedup > 1) {
-      const groupValues = byGeneration.get(catalog.fastGroup) || [];
-      groupValues.push(
-        Math.min(
-          1,
-          Math.max(
-            0,
-            (measurement.ratio - 1) / (catalog.nominalFastSpeedup - 1),
-          ),
-        ),
-      );
-      byGeneration.set(catalog.fastGroup, groupValues);
+      const groupValues = byGroup.get(catalog.fastGroup) ?? [];
+      groupValues.push(measurement);
+      byGroup.set(catalog.fastGroup, groupValues);
     }
   }
 
@@ -436,52 +350,99 @@ function createFastEstimator(
     measurementCount: freshMeasurements.length,
     estimate(record) {
       const catalog = MODEL_CATALOG[record.model];
-      if (!catalog || catalog.nominalFastSpeedup <= 1) {
-        return null;
-      }
-      const exactRatio = median(
-        exact.get(keyFor(record.model, record.effort)) || [],
+      if (!catalog || catalog.nominalFastSpeedup <= 1) return null;
+      const exactValues = (
+        exact.get(keyFor(record.model, record.effort)) ?? []
+      ).filter(
+        (measurement) =>
+          measurement.validPairs !== null &&
+          measurement.validPairs !== undefined &&
+          measurement.validPairs >= 3,
       );
-      if (exactRatio !== null) {
-        return {
-          value: Math.min(catalog.nominalFastSpeedup, exactRatio),
-          source: "exact",
-          sourceLabel: copy.fastExactSource,
-        };
+      const liveExact = exactValues.filter(
+        (measurement) => measurement.measuredAt === null,
+      );
+      const selectedExact = liveExact.length > 0 ? liveExact : exactValues;
+      if (selectedExact.length > 0) {
+        const ratio = median(
+          selectedExact.map((measurement) => measurement.ratio),
+        );
+        if (ratio !== null) {
+          return createEstimate(
+            ratio,
+            "exact",
+            selectedExact,
+            catalog.nominalFastSpeedup,
+            copy.fastExactSource,
+            referenceAt,
+          );
+        }
       }
-      const modelRatio = percentile(byModel.get(record.model) || [], 0.25);
-      if (modelRatio !== null) {
-        return {
-          value: Math.min(catalog.nominalFastSpeedup, modelRatio),
-          source: "model",
-          sourceLabel: copy.fastModelSource,
-        };
+
+      const modelValues = byModel.get(record.model) ?? [];
+      if (modelValues.length >= 3) {
+        const ratio = percentile(
+          modelValues.map((measurement) => measurement.ratio),
+          0.25,
+        );
+        if (ratio !== null) {
+          return createEstimate(
+            ratio,
+            "model",
+            modelValues,
+            catalog.nominalFastSpeedup,
+            copy.fastModelSource,
+            referenceAt,
+          );
+        }
       }
-      const generationValues = byGeneration.get(catalog.fastGroup || "") || [];
-      if (generationValues.length < FAST_GENERATION_MIN_MEASUREMENTS) {
-        return null;
-      }
-      const fulfillment = percentile(generationValues, 0.25);
-      if (fulfillment === null) {
-        return null;
-      }
-      return {
-        value: 1 + fulfillment * (catalog.nominalFastSpeedup - 1),
-        source: "generation",
-        sourceLabel: copy.fastGenerationSource,
-      };
+
+      const groupValues = byGroup.get(catalog.fastGroup ?? "") ?? [];
+      if (groupValues.length < FAST_GROUP_MIN_MEASUREMENTS) return null;
+      const fulfillment = percentile(
+        groupValues.map(
+          (measurement) =>
+            (measurement.ratio - 1) / (catalog.nominalFastSpeedup - 1),
+        ),
+        0.25,
+      );
+      if (fulfillment === null) return null;
+      return createEstimate(
+        1 +
+          Math.min(1, Math.max(0, fulfillment)) *
+            (catalog.nominalFastSpeedup - 1),
+        "fastGroup",
+        groupValues,
+        catalog.nominalFastSpeedup,
+        copy.fastGroupSource,
+        referenceAt,
+      );
     },
   };
 }
 
+function buildQuotaMap(root: HTMLElement | null): Map<string, number> {
+  const map = new Map<string, number>();
+  if (!root) return map;
+  const familySelectors = {
+    astra: ".quota-radar-current-card-astra",
+    sol: ".quota-radar-current-card-sol",
+    terra: ".quota-radar-current-card-terra",
+    luna: ".quota-radar-current-card-luna",
+  };
+  for (const [family, selector] of Object.entries(familySelectors)) {
+    const value = parseFirstNumber(
+      root.querySelector(`${selector} ${SELECTORS.quotaValue}`)?.textContent,
+    );
+    if (Number.isFinite(value) && value > 0) map.set(family, value);
+  }
+  return map;
+}
+
 function normalizeRecords(
   efficiencyPayload: unknown,
-  insightsPayload: unknown,
-  historyMap: Map<string, HistoryObservation[]>,
   quotaBudgets: Map<string, number>,
-  community: Map<string, { average: number; count: number }>,
 ): ModelRecord[] {
-  const insightIq = buildInsightIqMap(insightsPayload);
   const root = asObject(efficiencyPayload);
   const records: ModelRecord[] = [];
   for (const point of asArray(root?.points)) {
@@ -490,36 +451,23 @@ function normalizeRecords(
       continue;
     }
     const catalog = MODEL_CATALOG[normalized.model];
-    const key = keyFor(normalized.model, normalized.effort);
-    const rawIq = insightIq.get(key) ?? normalized.iq;
-    const stability = stabilizeIq(
-      rawIq,
-      historyMap.get(key) || [],
-      normalized.sampleCount,
-    );
-    const rating = community.get(`${normalized.model}-${normalized.effort}`);
     const quotaBudget20x = quotaBudgets.get(catalog.family) ?? null;
     records.push({
       model: normalized.model,
+      family: catalog.family,
       effort: normalized.effort,
       label: `${catalog.label} ${normalized.effort}`,
-      iq: rawIq,
-      qualityIq: stability.qualityIq,
-      hardIq: null,
+      iq: normalized.iq,
+      qualityIq: normalized.iq,
       cost: normalized.cost,
       minutes: normalized.minutes,
       index: records.length,
-      key,
+      key: keyFor(normalized.model, normalized.effort),
       sampleCount: normalized.sampleCount,
-      historyCenter: stability.historyCenter,
-      uncertainty: stability.uncertainty,
-      stability: stability.stability,
       quotaBudget20x,
       quotaShare: null,
-      quotaSource:
-        quotaBudget20x === null ? "plan-normalized-cost" : "family-radar",
-      communityRating: rating?.average ?? null,
-      communityRatingCount: rating?.count ?? 0,
+      quotaSource: quotaBudget20x === null ? "unavailable" : "family-radar",
+      mode: "standard",
     });
   }
   return records;
@@ -542,7 +490,7 @@ async function fetchEfficiency(): Promise<unknown> {
   } catch (error) {
     try {
       return await fetchJson(
-        `/api/intelligence-efficiency-metrics?benchmark=deep-swe`,
+        "/api/intelligence-efficiency-metrics?benchmark=deep-swe",
       );
     } catch {
       throw error;
@@ -556,24 +504,11 @@ export async function loadRadarSnapshot(
   quotaRoot: HTMLElement | null,
 ): Promise<RadarSnapshot> {
   const efficiencyPayload = await fetchEfficiency();
-  const [fastResult, insightsResult, ratingsResult] = await Promise.allSettled([
+  const [fastResult] = await Promise.allSettled([
     fetchJson(RADAR_ENDPOINTS.fastHistory),
-    fetchJson(RADAR_ENDPOINTS.insights),
-    fetchJson(RADAR_ENDPOINTS.ratings),
   ]);
-  const historyMap = buildHistoryMap(efficiencyPayload);
   const quotaBudgets = buildQuotaMap(quotaRoot);
-  const community =
-    ratingsResult.status === "fulfilled"
-      ? buildCommunityMap(ratingsResult.value)
-      : new Map<string, { average: number; count: number }>();
-  const records = normalizeRecords(
-    efficiencyPayload,
-    insightsResult.status === "fulfilled" ? insightsResult.value : null,
-    historyMap,
-    quotaBudgets,
-    community,
-  );
+  const records = normalizeRecords(efficiencyPayload, quotaBudgets);
   if (records.length === 0) {
     throw new Error("Radar returned no supported DeepSWE model tiers");
   }

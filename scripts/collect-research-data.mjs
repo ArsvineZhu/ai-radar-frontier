@@ -352,6 +352,18 @@ function parseSecondsPair(value) {
 }
 
 function extractLiveFastRows(html, sourceUrl) {
+  const sectionStart = html.indexOf('id="fast-radar"');
+  const historyStart = html.indexOf(
+    '<section class="fast-radar-history',
+    sectionStart,
+  );
+  const sectionHtml =
+    sectionStart >= 0
+      ? html.slice(
+          sectionStart,
+          historyStart > sectionStart ? historyStart : undefined,
+        )
+      : html;
   const description =
     html.match(
       /<details[^>]*class="fast-radar-explain"[\s\S]*?<p>([\s\S]*?)<\/p>/i,
@@ -359,7 +371,7 @@ function extractLiveFastRows(html, sourceUrl) {
   const rows = [];
   const rowPattern =
     /<div class="fast-radar-row"[^>]*data-fast-current-effort="([^"]+)"[\s\S]*?<strong>([^<]+)<\/strong>[\s\S]*?fast-radar-metric-e2e[\s\S]*?<span>([^<]+)<\/span>[\s\S]*?fast-radar-metric-ttft[\s\S]*?<span>([^<]+)<\/span>[\s\S]*?fast-radar-metric-tps[\s\S]*?<span>([^<]+)<\/span>/gi;
-  for (const match of html.matchAll(rowPattern)) {
+  for (const match of sectionHtml.matchAll(rowPattern)) {
     const e2e = parseSecondsPair(match[3]);
     const ttft = parseSecondsPair(match[4]);
     const tps = String(match[5]).match(/([\d.]+)\s*→\s*([\d.]+)/);

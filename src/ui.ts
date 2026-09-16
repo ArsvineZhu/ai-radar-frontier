@@ -2,7 +2,11 @@ import styles from "./styles.css?raw";
 import { IQ_TARGET } from "./config.js";
 import type { RuntimeState } from "./config.js";
 import type { Copy } from "./i18n.js";
-import type { ScoredRecord } from "./scoring.js";
+import type {
+  EligibilityExclusionReason,
+  ModelRecord,
+  ScoredRecord,
+} from "./scoring.js";
 
 export interface CatalogEntry {
   label: string;
@@ -222,8 +226,13 @@ export function renderCard(
   const winnerText = copy.ariaPreferred(winnerLabels);
   const fastDescription =
     record.mode === "fast"
-      ? copy.ariaFast(formatMultiplier(record.fastMultiplier))
+      ? copy.ariaFast(
+          formatMultiplier(record.fastMultiplier),
+          record.fastEvidenceLevel,
+          record.fastSampleCount,
+        )
       : "";
+  const timeLabel = record.mode === "fast" ? copy.estimatedTime : copy.time;
   button.setAttribute(
     "aria-label",
     copy.cardAria({
@@ -238,11 +247,20 @@ export function renderCard(
       quota: formatQuotaShare(record.quotaShare, copy),
       cost: formatCost(record.cost),
       time: formatMinutes(record.minutes, copy),
+      quotaGate: copy.quotaGate(record.quotaLimit),
+      evidence:
+        record.mode === "fast"
+          ? copy.fastEvidence({
+              level: record.fastEvidenceLevel,
+              sampleCount: record.fastSampleCount,
+              ageDays: record.fastAgeDays,
+            })
+          : "",
+      timeLabel,
       rankLabel: copy.ariaRank(rank),
       qualityLabel: copy.quality,
       quotaLabel: copy.quota,
       costLabel: copy.cost,
-      timeLabel: copy.time,
       originalDetails: copy.originalDetails,
     }),
   );
@@ -256,8 +274,10 @@ export function renderCard(
   if (record.mode === "fast") {
     const fastBadge = makeElement("span", "cr-mode", copy.fast);
     fastBadge.title = copy.fastBadgeTitle({
-      source: record.fastMultiplierSource,
+      source: record.fastEvidenceSource,
       multiplier: formatMultiplier(record.fastMultiplier),
+      sampleCount: record.fastSampleCount,
+      ageDays: record.fastAgeDays,
     });
     model.append(fastBadge);
   }
@@ -287,9 +307,15 @@ export function renderCard(
   );
 
   const foot = makeElement("div", "cr-card-foot");
+  const quotaMetric = renderMetric(
+    copy.quota,
+    formatQuotaShare(record.quotaShare, copy),
+  );
+  quotaMetric.title = copy.quotaGate(record.quotaLimit);
   foot.append(
-    renderMetric(copy.quota, formatQuotaShare(record.quotaShare, copy)),
-    renderMetric(copy.time, formatMinutes(record.minutes, copy)),
+    renderMetric(copy.cost, formatCost(record.cost)),
+    quotaMetric,
+    renderMetric(timeLabel, formatMinutes(record.minutes, copy)),
   );
 
   button.append(head, iqRow, qualityRow, foot);
@@ -298,8 +324,9 @@ export function renderCard(
 }
 
 export function renderExclusionItem(
-  record: ScoredRecord,
+  record: ModelRecord | ScoredRecord,
   copy: Copy,
+  reason: EligibilityExclusionReason,
 ): HTMLLIElement {
   const item = makeElement("li", "cr-exclusion-item");
   const modeLabel = record.mode === "fast" ? ` ${copy.fast}` : "";
@@ -307,15 +334,15 @@ export function renderExclusionItem(
     record.quotaShare === null
       ? ""
       : ` · ${(record.quotaShare * 100).toFixed(1)}% ${copy.quotaPerWeek}`;
-  const representativeLabel = record.representative
-    ? `${record.representative.label}${record.representative.mode === "fast" ? ` ${copy.fast}` : ""}`
-    : "";
+  const quotaLimit = "quotaLimit" in record ? record.quotaLimit : null;
   const exclusionLabel =
-    record.quotaExclusionReason === "over-limit"
-      ? copy.quotaOverLimit(record.quotaShare, record.quotaLimit)
-      : record.quotaExclusionReason === "unavailable"
-        ? copy.quotaUnavailable
-        : copy.dominatedBy(representativeLabel);
+    reason === "below-iq-floor"
+      ? copy.iqFloorReason(record.iq)
+      : reason === "quota-over-limit"
+        ? copy.quotaOverLimit(record.quotaShare, quotaLimit)
+        : reason === "quota-unknown"
+          ? copy.quotaUnavailable
+          : copy.quotaUnavailable;
   const details = makeElement("div");
   details.append(
     makeElement("div", "cr-exclusion-model", `${record.label}${modeLabel}`),
