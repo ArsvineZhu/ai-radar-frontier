@@ -21,19 +21,16 @@ import {
   syncGridViewport,
 } from "./animations.js";
 import {
-  buildStrategyResult,
-  isValidRecord,
-  readCard,
-  readFastE2EMultipliers,
-} from "./data.js";
-import type { StrategyResult } from "./data.js";
-import {
   createStrategyCatalog,
   createSubscriptionCatalog,
   getCopy,
   getLocale,
 } from "./i18n.js";
-import { getStrategyWeights } from "./scoring.js";
+import { buildStrategyResult } from "./recommendation.js";
+import type { StrategyResult } from "./recommendation.js";
+import { loadRadarSnapshot } from "./radar.js";
+import type { RadarSnapshot } from "./radar.js";
+import { isValidRecord } from "./scoring.js";
 import {
   createShellMarkup,
   makeElement,
@@ -78,10 +75,17 @@ function getSubscription(subscriptions, subscriptionKey) {
   return subscriptions[subscriptionKey] || subscriptions.plus;
 }
 
-function strategyDescription(copy, strategyKey, subscriptionKey) {
-  return copy.weightDescription(
-    getStrategyWeights(strategyKey, subscriptionKey),
+function strategyDescription(copy, strategyKey) {
+  return (
+    copy.strategyDescriptions[strategyKey] ||
+    copy.strategyDescriptions.effectiveness
   );
+}
+
+interface RadarRuntimeState {
+  snapshot: RadarSnapshot | null;
+  error: Error | null;
+  request: Promise<void> | null;
 }
 
 function syncStrategyControl(
@@ -182,6 +186,7 @@ function updateDisclosure(
   copy,
   strategy,
   dominated,
+  quotaExcluded,
   invalidCount,
   lowIqCount,
   totalCount,
@@ -203,18 +208,24 @@ function updateDisclosure(
   clearDisclosureAnimation(state.animations);
   resetDisclosureStyles(disclosure, body);
   disclosure.hidden = false;
+  const excludedRecords = [...dominated, ...quotaExcluded];
   label.textContent =
-    dominated.length > 0
-      ? copy.excluded(dominated.length)
+    excludedRecords.length > 0
+      ? copy.excluded(excludedRecords.length)
       : copy.dominanceCheck;
   content.replaceChildren();
   notes.replaceChildren();
   notes.hidden = true;
 
-  if (dominated.length > 0) {
+  notes.append(
+    makeElement("p", "cr-exclusion-note", copy.qualityDataNote),
+    makeElement("p", "cr-exclusion-note", copy.quotaDataNote),
+  );
+
+  if (excludedRecords.length > 0) {
     const list = makeElement("ul", "cr-exclusion-list");
-    for (const record of dominated) {
-      list.append(renderExclusionItem(record, strategy.label, copy));
+    for (const record of excludedRecords) {
+      list.append(renderExclusionItem(record, copy.recommendationScore, copy));
     }
     content.append(list);
   } else {
@@ -230,12 +241,27 @@ function updateDisclosure(
       makeElement(
         "p",
         "cr-exclusion-note",
-        copy.fastNote(
-          fastSummary.fastComparedCount,
-          fastSummary.fastLowerThanNextCount,
-          fastSummary.fastCandidateCount,
-          fastSummary.fastFrontierCount,
-        ),
+        copy.fastNote({
+          included: fastSummary.fastCandidateCount,
+          exact: fastSummary.fastExactCount,
+          model: fastSummary.fastModelCount,
+          generation: fastSummary.fastGenerationCount,
+          omitted: fastSummary.fastOmittedCount,
+          frontier: fastSummary.fastFrontierCount,
+        }),
+      ),
+    );
+  }
+  if (fastSummary?.quotaExcluded.length > 0) {
+    notes.append(
+      makeElement(
+        "p",
+        "cr-exclusion-note",
+        copy.quotaGateNote({
+          overLimit: fastSummary.quotaOverLimitCount,
+          unknown: fastSummary.quotaUnknownCount,
+          limit: fastSummary.quotaLimit,
+        }),
       ),
     );
   }
@@ -251,7 +277,7 @@ function updateDisclosure(
   }
   if (
     totalCount > 0 &&
-    dominated.length === 0 &&
+    excludedRecords.length === 0 &&
     lowIqCount === 0 &&
     invalidCount === 0
   ) {
@@ -330,6 +356,7 @@ function renderError(
   strategies,
   subscriptions,
   message,
+  retryRadar,
 ) {
   const root = getElement<HTMLElement>(state, SELECTORS.root);
   const grid = getElement<HTMLElement>(state, SELECTORS.grid);
@@ -352,6 +379,7 @@ function renderError(
       retry: true,
       icon: "!",
       onRetry: () => {
+        retryRadar?.();
         const refresh = state.source?.querySelector(SELECTORS.refresh);
         if (refresh instanceof HTMLElement) {
           refresh.click();
@@ -375,7 +403,7 @@ function renderData(
   copy,
   strategies,
   subscriptions,
-  cards,
+  snapshot: RadarSnapshot,
   openDetail,
 ) {
   const root = getElement<HTMLElement>(state, SELECTORS.root);
@@ -387,7 +415,7 @@ function renderData(
 
   const animateCardEntries = state.animateCardsOnNextRender;
   state.animateCardsOnNextRender = true;
-  const records = cards.map(readCard);
+  const records = snapshot.records;
   const validRecords = records.filter(isValidRecord);
   const invalidCount = records.length - validRecords.length;
   const lowIqCount = validRecords.filter(
@@ -396,19 +424,14 @@ function renderData(
   const standardRecords = validRecords.filter(
     (record) => record.iq >= IQ_MINIMUM,
   );
-  const fastRoot = state.fastSource?.isConnected
-    ? state.fastSource
-    : document.querySelector<HTMLElement>(SELECTORS.fastSource);
-  const e2eMultipliers = readFastE2EMultipliers(fastRoot);
   const strategyResults: Record<string, StrategyResult> = {};
   for (const strategyKey of STRATEGY_KEYS) {
     strategyResults[strategyKey] = buildStrategyResult(
       standardRecords,
-      e2eMultipliers,
+      snapshot.fastEstimator,
       strategyKey,
       state.subscription,
       state.fastEnabled,
-      copy,
     );
   }
 
@@ -417,9 +440,9 @@ function renderData(
     : DEFAULT_STRATEGY;
   state.sortStrategy = strategyKey;
   const currentResult = strategyResults[strategyKey];
-  const { frontier, dominated } = currentResult;
+  const { frontier, dominated, quotaExcluded } = currentResult;
   const orderedFrontier = currentResult.orderedFrontier;
-  const strategyWinners = new Map();
+  const strategyWinners = new Map<string, string[]>();
   for (const key of STRATEGY_KEYS) {
     const winner = strategyResults[key].orderedFrontier[0];
     if (winner) {
@@ -445,7 +468,7 @@ function renderData(
         ranks.get(record.key) || 0,
         strategy,
         strategyWinners.get(record.key) || [],
-        strategyDescription(copy, strategyKey, state.subscription),
+        strategyDescription(copy, strategyKey),
         copy,
         animateCardEntries,
         openDetail,
@@ -453,11 +476,17 @@ function renderData(
     );
   }
   if (frontier.length === 0) {
-    const emptyTitle =
-      standardRecords.length === 0 ? copy.noModelsTitle : copy.noValidTitle;
-    const emptyDescription =
-      standardRecords.length === 0
-        ? copy.noModelsDescription
+    const noModels = standardRecords.length === 0;
+    const quotaBlocked = !noModels && quotaExcluded.length > 0;
+    const emptyTitle = noModels
+      ? copy.noModelsTitle
+      : quotaBlocked
+        ? copy.noQuotaModelsTitle
+        : copy.noValidTitle;
+    const emptyDescription = noModels
+      ? copy.noModelsDescription
+      : quotaBlocked
+        ? copy.noQuotaModelsDescription
         : copy.noValidDescription;
     nextChildren.push(renderEmpty(emptyTitle, emptyDescription, copy));
   }
@@ -482,6 +511,7 @@ function renderData(
     copy,
     strategy,
     dominated,
+    quotaExcluded,
     invalidCount,
     lowIqCount,
     records.length,
@@ -523,6 +553,7 @@ function render(
   subscriptions,
   openDetail,
   scheduleRender,
+  radarState: RadarRuntimeState,
 ) {
   state.renderQueued = false;
   const source = document.querySelector<HTMLElement>(SELECTORS.source);
@@ -541,27 +572,35 @@ function render(
     return;
   }
 
-  const cards = Array.from(
-    source.querySelectorAll<HTMLElement>(SELECTORS.card),
-  );
   const sourceText = source.textContent || "";
   const failed = SOURCE_STATUS_PATTERNS.failed.test(sourceText);
   const loading = !failed && SOURCE_STATUS_PATTERNS.loading.test(sourceText);
-  if (loading && cards.length === 0) {
+  if (!radarState.snapshot && (loading || !radarState.error)) {
     renderLoading(state, copy, strategies, subscriptions);
     return;
   }
-  if (cards.length === 0) {
+  if (!radarState.snapshot) {
     renderError(
       state,
       copy,
       strategies,
       subscriptions,
-      failed ? copy.errorLoading : copy.errorMissing,
+      failed || radarState.error ? copy.errorLoading : copy.errorMissing,
+      () => {
+        radarState.error = null;
+        loadRadarData(radarState, copy, scheduleRender);
+      },
     );
     return;
   }
-  renderData(state, copy, strategies, subscriptions, cards, openDetail);
+  renderData(
+    state,
+    copy,
+    strategies,
+    subscriptions,
+    radarState.snapshot,
+    openDetail,
+  );
 }
 
 function queueRender(state: RuntimeState, renderCallback, animateCards = true) {
@@ -620,6 +659,32 @@ function observeFastSource(
     childList: true,
     subtree: true,
   });
+}
+
+function loadRadarData(
+  radarState: RadarRuntimeState,
+  copy,
+  renderCallback,
+): void {
+  if (radarState.request) {
+    return;
+  }
+  const fastRoot = document.querySelector<HTMLElement>(SELECTORS.fastSource);
+  const quotaRoot = document.querySelector<HTMLElement>(SELECTORS.quotaSource);
+  radarState.request = loadRadarSnapshot(copy, fastRoot, quotaRoot)
+    .then((snapshot) => {
+      radarState.snapshot = snapshot;
+      radarState.error = null;
+      radarState.request = null;
+      renderCallback();
+    })
+    .catch((error: unknown) => {
+      radarState.snapshot = null;
+      radarState.error =
+        error instanceof Error ? error : new Error(String(error));
+      radarState.request = null;
+      renderCallback();
+    });
 }
 
 function openOriginalDetail(state: RuntimeState, copy, record, renderCallback) {
@@ -684,6 +749,7 @@ function mount(
   copy,
   strategies,
   subscriptions,
+  radarState: RadarRuntimeState,
   renderCallback,
   renderFastCallback,
 ) {
@@ -926,6 +992,7 @@ function mount(
   if (fastSource) {
     observeFastSource(state, fastSource, renderFastCallback);
   }
+  loadRadarData(radarState, copy, renderCallback);
 
   state.observers.theme = new MutationObserver(() => syncTheme(state));
   state.observers.theme.observe(document.documentElement, {
@@ -978,6 +1045,11 @@ function start() {
   }
 
   const state = createState();
+  const radarState: RadarRuntimeState = {
+    snapshot: null,
+    error: null,
+    request: null,
+  };
   const copy = getCopy(getLocale());
   const strategies = createStrategyCatalog(copy);
   const subscriptions = createSubscriptionCatalog(copy);
@@ -992,6 +1064,7 @@ function start() {
           subscriptions,
           openOriginalDetailCallback,
           renderCallback,
+          radarState,
         ),
       animateCards,
     );
@@ -1004,6 +1077,7 @@ function start() {
       copy,
       strategies,
       subscriptions,
+      radarState,
       renderCallback,
       renderFastCallback,
     );

@@ -1,4 +1,5 @@
 import styles from "./styles.css?raw";
+import { IQ_TARGET } from "./config.js";
 import type { RuntimeState } from "./config.js";
 import type { Copy } from "./i18n.js";
 import type { ScoredRecord } from "./scoring.js";
@@ -144,12 +145,30 @@ function formatMinutes(minutes: number, copy: Copy): string {
   return `${display}${copy.minutes}`;
 }
 
-function formatStrategyScore(value: number): string {
-  return `${value.toFixed(2)}×`;
+function formatScore(value: number): string {
+  return value.toFixed(2);
 }
 
 function formatMultiplier(value: number): string {
   return `${value.toFixed(2)}×`;
+}
+
+function formatQualityMargin(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  if (rounded === 0) {
+    return "0 IQ";
+  }
+  const absolute = Math.abs(rounded);
+  const formatted = Number.isInteger(absolute)
+    ? String(absolute)
+    : absolute.toFixed(1);
+  return `${rounded > 0 ? "+" : "−"}${formatted} IQ`;
+}
+
+function formatQuotaShare(value: number | null, copy: Copy): string {
+  return value === null
+    ? copy.quotaUnavailableShort
+    : `${copy.approximate} ${(value * 100).toFixed(1)}% / ${copy.week}`;
 }
 
 function familyName(record: ScoredRecord): string {
@@ -175,7 +194,7 @@ export function renderCard(
   rank: number,
   strategy: CatalogEntry,
   winnerLabels: string[],
-  weightsDescription: string,
+  strategyDescription: string,
   copy: Copy,
   animateEntry: boolean,
   onOpen: (record: ScoredRecord) => void,
@@ -203,14 +222,17 @@ export function renderCard(
       label: record.label,
       modeLabel,
       strategyLabel: strategy.label,
-      weightsDescription,
+      strategyDescription,
       winnerText,
       fastDescription,
       iq: record.iq,
-      score: formatStrategyScore(record.strategyScore),
+      qualityMargin: formatQualityMargin(record.iq - IQ_TARGET),
+      quota: formatQuotaShare(record.quotaShare, copy),
       cost: formatCost(record.cost),
       time: formatMinutes(record.minutes, copy),
       rankLabel: copy.ariaRank(rank),
+      qualityLabel: copy.quality,
+      quotaLabel: copy.quota,
       costLabel: copy.cost,
       timeLabel: copy.time,
       originalDetails: copy.originalDetails,
@@ -246,23 +268,23 @@ export function renderCard(
     makeElement("strong", "cr-iq", String(record.iq)),
   );
 
-  const indexRow = makeElement("div", "cr-index-row");
-  indexRow.append(
-    makeElement("span", "cr-index-label", strategy.label),
+  const qualityRow = makeElement("div", "cr-quality-row");
+  qualityRow.append(
+    makeElement("span", "cr-quality-label", copy.quality),
     makeElement(
       "strong",
-      "cr-index",
-      formatStrategyScore(record.strategyScore),
+      "cr-quality-margin",
+      formatQualityMargin(record.iq - IQ_TARGET),
     ),
   );
 
   const foot = makeElement("div", "cr-card-foot");
   foot.append(
-    renderMetric(copy.cost, formatCost(record.cost)),
+    renderMetric(copy.quota, formatQuotaShare(record.quotaShare, copy)),
     renderMetric(copy.time, formatMinutes(record.minutes, copy)),
   );
 
-  button.append(head, iqRow, indexRow, foot);
+  button.append(head, iqRow, qualityRow, foot);
   button.addEventListener("click", () => onOpen(record));
   return button;
 }
@@ -274,28 +296,34 @@ export function renderExclusionItem(
 ): HTMLLIElement {
   const item = makeElement("li", "cr-exclusion-item");
   const score = Number.isFinite(record.strategyScore)
-    ? ` · ${scoreLabel} ${formatStrategyScore(record.strategyScore)}`
+    ? ` · ${scoreLabel} ${formatScore(record.strategyScore)}`
     : "";
   const modeLabel = record.mode === "fast" ? ` ${copy.fast}` : "";
+  const quotaLabel =
+    record.quotaShare === null
+      ? ""
+      : ` · ${(record.quotaShare * 100).toFixed(1)}% ${copy.quotaPerWeek}`;
   const representativeLabel = record.representative
     ? `${record.representative.label}${record.representative.mode === "fast" ? ` ${copy.fast}` : ""}`
     : "";
+  const exclusionLabel =
+    record.quotaExclusionReason === "over-limit"
+      ? copy.quotaOverLimit(record.quotaShare, record.quotaLimit)
+      : record.quotaExclusionReason === "unavailable"
+        ? copy.quotaUnavailable
+        : copy.dominatedBy(representativeLabel);
   const details = makeElement("div");
   details.append(
     makeElement("div", "cr-exclusion-model", `${record.label}${modeLabel}`),
     makeElement(
       "div",
       "cr-exclusion-values",
-      `IQ ${record.iq}${score} · ${formatCost(record.cost)} · ${formatMinutes(record.minutes, copy)}`,
+      `IQ ${record.iq}${score} · ${formatCost(record.cost)} · ${formatMinutes(record.minutes, copy)}${quotaLabel}`,
     ),
   );
   item.append(
     details,
-    makeElement(
-      "span",
-      "cr-exclusion-witness",
-      copy.dominatedBy(representativeLabel),
-    ),
+    makeElement("span", "cr-exclusion-witness", exclusionLabel),
   );
   return item;
 }

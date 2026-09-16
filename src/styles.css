@@ -854,7 +854,7 @@
   line-height: 0.95;
 }
 
-.cr-index-row {
+.cr-quality-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -862,13 +862,13 @@
   margin: 13px 0 12px;
 }
 
-.cr-index-label {
+.cr-quality-label {
   color: var(--cr-muted);
   font-size: 11px;
   font-weight: 600;
 }
 
-.cr-index {
+.cr-quality-margin {
   color: var(--cr-foreground);
   font-family:
     "Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
