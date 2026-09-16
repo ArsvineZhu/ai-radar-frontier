@@ -235,7 +235,7 @@ function updateDisclosure(
   if (excludedRecords.length > 0) {
     const list = makeElement("ul", "cr-exclusion-list");
     for (const record of excludedRecords) {
-      list.append(renderExclusionItem(record, copy.recommendationScore, copy));
+      list.append(renderExclusionItem(record, copy));
     }
     content.append(list);
   } else {

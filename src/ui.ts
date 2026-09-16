@@ -147,10 +147,6 @@ function formatMinutes(minutes: number, copy: Copy): string {
   return `${display}${copy.minutes}`;
 }
 
-function formatScore(value: number): string {
-  return value.toFixed(2);
-}
-
 function formatMultiplier(value: number): string {
   return `${value.toFixed(2)}×`;
 }
@@ -303,13 +299,9 @@ export function renderCard(
 
 export function renderExclusionItem(
   record: ScoredRecord,
-  scoreLabel: string,
   copy: Copy,
 ): HTMLLIElement {
   const item = makeElement("li", "cr-exclusion-item");
-  const score = Number.isFinite(record.strategyScore)
-    ? ` · ${scoreLabel} ${formatScore(record.strategyScore)}`
-    : "";
   const modeLabel = record.mode === "fast" ? ` ${copy.fast}` : "";
   const quotaLabel =
     record.quotaShare === null
@@ -330,7 +322,7 @@ export function renderExclusionItem(
     makeElement(
       "div",
       "cr-exclusion-values",
-      `IQ ${record.iq}${score} · ${formatCost(record.cost)} · ${formatMinutes(record.minutes, copy)}${quotaLabel}`,
+      `IQ ${record.iq} · ${formatCost(record.cost)} · ${formatMinutes(record.minutes, copy)}${quotaLabel}`,
     ),
   );
   item.append(

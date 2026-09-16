@@ -7,11 +7,12 @@
   "scripts": {
     "build": "vite build && node scripts/export-dist.mjs",
     "build:check": "npm run build && node scripts/check-dist.mjs",
-    "check": "npm run format:check && npm run typecheck && npm run lint && npm run duplication && npm run knip && npm run build:check",
+    "check": "npm run format:check && npm run typecheck && npm run test && npm run lint && npm run duplication && npm run knip && npm run build:check",
     "duplication": "jscpd --config jscpd.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "knip": "knip",
+    "test": "tsx --test tests/recommendation.test.ts",
     "lint": "oxlint --deny-warnings src scripts vite.config.ts",
     "typecheck": "tsc --noEmit",
     "dev": "vite"
@@ -24,6 +25,7 @@
     "oxlint": "^1.83.0",
     "prettier": "^3.9.6",
     "terser": "^5.51.2",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vite": "^8.3.0"
   }

@@ -60,9 +60,9 @@ export const RADAR_ENDPOINTS = Object.freeze({
 });
 export const HISTORY_WINDOW_SIZE = 18;
 export const HISTORY_MIN_POINTS = 3;
-export const HISTORY_CURRENT_WEIGHT = 0.75;
-export const HISTORY_CORRECTION_LIMIT = 2;
 export const UNCERTAINTY_PENALTY_LIMIT = 2;
+export const FAST_MEASUREMENT_MAX_AGE_DAYS = 30;
+export const COMMUNITY_MIN_RATING_COUNT = 15;
 export const ECONOMY_MAX_MINUTES = 45;
 export const ECONOMY_TIME_WEIGHT = 0.15;
 export const BALANCED_COST_WEIGHT = 1;

@@ -2,6 +2,7 @@ import {
   BALANCED_COST_WEIGHT,
   BALANCED_QUALITY_WEIGHT,
   BALANCED_TIME_WEIGHT,
+  COMMUNITY_MIN_RATING_COUNT,
   ECONOMY_MAX_MINUTES,
   ECONOMY_TIME_WEIGHT,
   IQ_DEFICIT_SCALE,
@@ -188,15 +189,42 @@ function compareBaseQuality(left: ScoredRecord, right: ScoredRecord): number {
     right.qualityGain - left.qualityGain ||
     left.quotaPressure - right.quotaPressure ||
     left.timePressure - right.timePressure ||
+    compareRisk(left, right) ||
     compareCommunity(left, right) ||
     left.index - right.index
   );
 }
 
 function compareCommunity(left: ScoredRecord, right: ScoredRecord): number {
+  const leftRating =
+    left.communityRatingCount >= COMMUNITY_MIN_RATING_COUNT
+      ? left.communityRating
+      : null;
+  const rightRating =
+    right.communityRatingCount >= COMMUNITY_MIN_RATING_COUNT
+      ? right.communityRating
+      : null;
+  if (leftRating === null && rightRating === null) {
+    return 0;
+  }
   return (
-    (right.communityRating ?? -1) - (left.communityRating ?? -1) ||
-    right.communityRatingCount - left.communityRatingCount
+    (rightRating ?? -1) - (leftRating ?? -1) ||
+    (rightRating === null || leftRating === null
+      ? 0
+      : right.communityRatingCount - left.communityRatingCount)
+  );
+}
+
+function stabilityPenalty(status: StabilityStatus): number {
+  if (status === "degrading") return 1;
+  if (status === "unknown") return 0.5;
+  return 0;
+}
+
+function compareRisk(left: ScoredRecord, right: ScoredRecord): number {
+  return (
+    stabilityPenalty(left.stability) - stabilityPenalty(right.stability) ||
+    left.uncertainty - right.uncertainty
   );
 }
 
@@ -205,6 +233,7 @@ function compareQuota(left: ScoredRecord, right: ScoredRecord): number {
     left.quotaPressure - right.quotaPressure ||
     qualityValue(right) - qualityValue(left) ||
     left.timePressure - right.timePressure ||
+    compareRisk(left, right) ||
     compareCommunity(left, right) ||
     left.index - right.index
   );
@@ -215,6 +244,7 @@ function compareTime(left: ScoredRecord, right: ScoredRecord): number {
     left.minutes - right.minutes ||
     qualityValue(right) - qualityValue(left) ||
     left.quotaPressure - right.quotaPressure ||
+    compareRisk(left, right) ||
     compareCommunity(left, right) ||
     left.index - right.index
   );
@@ -240,6 +270,7 @@ function compareQualityBand(
       left.minutes - right.minutes ||
       left.quotaPressure - right.quotaPressure ||
       qualityValue(right) - qualityValue(left) ||
+      compareRisk(left, right) ||
       compareCommunity(left, right) ||
       left.index - right.index
     );
@@ -293,7 +324,7 @@ function kneeDistance(
   record: ScoredRecord,
   candidates: ScoredRecord[],
 ): number {
-  const qualities = candidates.map(qualityValue);
+  const qualities = candidates.map(qualityUtility);
   const quotas = candidates.map((candidate) => candidate.quotaPressure);
   const times = candidates.map((candidate) => candidate.minutes);
   const maximumQuality = Math.max(...qualities);
@@ -306,7 +337,7 @@ function kneeDistance(
   const quotaRange = maximumQuota - minimumQuota || 1;
   const timeRange = maximumTime - minimumTime || 1;
   const qualityDistance =
-    ((maximumQuality - qualityValue(record)) / qualityRange) *
+    ((maximumQuality - qualityUtility(record)) / qualityRange) *
     BALANCED_QUALITY_WEIGHT;
   const quotaDistance =
     ((record.quotaPressure - minimumQuota) / quotaRange) * BALANCED_COST_WEIGHT;
@@ -315,6 +346,10 @@ function kneeDistance(
   return Math.sqrt(
     qualityDistance ** 2 + quotaDistance ** 2 + timeDistance ** 2,
   );
+}
+
+function qualityUtility(record: ScoredRecord): number {
+  return record.qualityGain - record.qualityDeficit;
 }
 
 function calculateStrategyScore(

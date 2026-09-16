@@ -1,8 +1,7 @@
 import {
   FAST_GENERATION_MIN_MEASUREMENTS,
+  FAST_MEASUREMENT_MAX_AGE_DAYS,
   FAST_MODEL_ID,
-  HISTORY_CORRECTION_LIMIT,
-  HISTORY_CURRENT_WEIGHT,
   HISTORY_MIN_POINTS,
   HISTORY_WINDOW_SIZE,
   MODEL_CATALOG,
@@ -245,16 +244,6 @@ function stabilizeIq(
     historyCenter === null
       ? 0
       : median(recent.map((point) => Math.abs(point.iq - historyCenter))) || 0;
-  const correction =
-    historyCenter === null
-      ? 0
-      : Math.min(
-          HISTORY_CORRECTION_LIMIT,
-          Math.max(
-            -HISTORY_CORRECTION_LIMIT,
-            (historyCenter - currentIq) * (1 - HISTORY_CURRENT_WEIGHT),
-          ),
-        );
   const samplePenalty = Math.min(
     UNCERTAINTY_PENALTY_LIMIT,
     8 / Math.sqrt(Math.max(sampleCount || 1, 1)),
@@ -265,7 +254,7 @@ function stabilizeIq(
     samplePenalty + volatilityPenalty,
   );
   return {
-    qualityIq: currentIq + correction - uncertainty,
+    qualityIq: currentIq,
     historyCenter,
     uncertainty,
     stability: classifyStability(recent),
@@ -394,12 +383,30 @@ function readFastMeasurements(
 function createFastEstimator(
   measurements: FastMeasurement[],
   copy: Copy,
+  referenceAt: number | null,
 ): FastEstimator {
+  const datedMeasurements = measurements
+    .map((measurement) => measurement.measuredAt)
+    .filter((timestamp): timestamp is number => timestamp !== null);
+  const freshnessReference =
+    referenceAt ??
+    (datedMeasurements.length > 0 ? Math.max(...datedMeasurements) : null);
+  const freshnessCutoff =
+    freshnessReference === null
+      ? null
+      : freshnessReference -
+        FAST_MEASUREMENT_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const freshMeasurements = measurements.filter(
+    (measurement) =>
+      measurement.measuredAt === null ||
+      freshnessCutoff === null ||
+      measurement.measuredAt >= freshnessCutoff,
+  );
   const exact = new Map<string, number[]>();
   const byModel = new Map<string, number[]>();
   const byGeneration = new Map<string, number[]>();
 
-  for (const measurement of measurements) {
+  for (const measurement of freshMeasurements) {
     const modelValues = byModel.get(measurement.model) || [];
     modelValues.push(measurement.ratio);
     byModel.set(measurement.model, modelValues);
@@ -426,7 +433,7 @@ function createFastEstimator(
   }
 
   return {
-    measurementCount: measurements.length,
+    measurementCount: freshMeasurements.length,
     estimate(record) {
       const catalog = MODEL_CATALOG[record.model];
       if (!catalog || catalog.nominalFastSpeedup <= 1) {
@@ -574,9 +581,15 @@ export async function loadRadarSnapshot(
     fastRoot,
     fastResult.status === "fulfilled" ? fastResult.value : null,
   );
+  const updatedAt =
+    asString(asObject(efficiencyPayload)?.source_updated_at) || null;
   return {
     records,
-    fastEstimator: createFastEstimator(fastMeasurements, copy),
-    updatedAt: asString(asObject(efficiencyPayload)?.source_updated_at) || null,
+    fastEstimator: createFastEstimator(
+      fastMeasurements,
+      copy,
+      parseTimestamp(updatedAt),
+    ),
+    updatedAt,
   };
 }

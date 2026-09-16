@@ -50,7 +50,6 @@ const TRANSLATIONS = freezeRecord({
     quotaPerWeek: "weekly quota",
     approximate: "≈",
     quotaUnavailableShort: "Unknown",
-    recommendationScore: "Recommendation score",
     time: "Time",
     minutes: "min",
     currentAbilityPage: "the current ability page",
@@ -142,7 +141,7 @@ const TRANSLATIONS = freezeRecord({
     announcedOriginalChanged:
       "The original data just changed. Try again in a moment.",
     qualityDataNote:
-      "The primary quality signal is DeepSWE software-engineering IQ; history only provides a light stability adjustment, while cards keep showing the current IQ.",
+      "The primary quality signal is current DeepSWE software-engineering IQ; history is used only for degradation risk and close-call tie-breaks, while cards show the current IQ.",
     quotaDataNote:
       "Family quota radar is used for the weekly burden and the strategy's sustainable per-task gate. Candidates without a current family quota value remain visible but are not auto-recommended.",
     quotaGateNote: ({ overLimit, unknown, limit }) =>
@@ -182,7 +181,6 @@ const TRANSLATIONS = freezeRecord({
     quotaPerWeek: "周额度",
     approximate: "≈",
     quotaUnavailableShort: "未知",
-    recommendationScore: "推荐评分",
     time: "耗时",
     minutes: "分钟",
     currentAbilityPage: "当前能力页",
@@ -260,7 +258,7 @@ const TRANSLATIONS = freezeRecord({
       `当前已切换到${modeName}，筛选范围仍是综合智能。`,
     announcedOriginalChanged: "原站数据刚刚更新，请稍候重试。",
     qualityDataNote:
-      "主质量指标为 DeepSWE 软件工程 IQ；历史数据只做轻量稳定性修正，卡片仍显示当前 IQ。",
+      "主质量指标为当前 DeepSWE 软件工程 IQ；历史数据只用于降智风险和接近并列时的判断，卡片显示当前 IQ。",
     quotaDataNote:
       "优先使用模型族额度雷达计算周额度负担和策略可持续门槛；缺少当前模型族额度的数据仍会显示，但不自动推荐。",
     quotaGateNote: ({ overLimit, unknown, limit }) =>
