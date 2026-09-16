@@ -74,6 +74,7 @@ const TRANSLATIONS = freezeRecord({
         "Reach the quality floor, then minimize measured or conservatively estimated E2E time.",
     },
     subscriptions: { plus: "Plus", pro5: "Pro 5x", pro20: "Pro 20x" },
+    subscriptionMultipliers: { plus: "1×", pro5: "5×", pro20: "20×" },
     modeNames: {
       software: "Software Engineering Ability",
       visual: "Visual-Spatial Reasoning",
@@ -199,6 +200,7 @@ const TRANSLATIONS = freezeRecord({
       speed: "先达到质量下限，再优先最短的实测或保守估计 E2E。",
     },
     subscriptions: { plus: "Plus", pro5: "Pro 5x", pro20: "Pro 20x" },
+    subscriptionMultipliers: { plus: "1×", pro5: "5×", pro20: "20×" },
     modeNames: { software: "软件工程能力", visual: "视觉空间推理" },
     errorTitle: "暂时无法读取 DeepSWE 软件工程数据",
     errorLoading: "原站报告了加载问题，可以使用原站刷新。",

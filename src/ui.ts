@@ -71,7 +71,7 @@ export function createShellMarkup(
     )
     .join("");
   const selectedStrategy = strategies[state.sortStrategy]?.label || copy.sort;
-  const selectedStrategyLabel = `${selectedStrategy}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
+  const selectedStrategyLabel = `${copy.subscriptionMultipliers[state.subscription] || "1×"} ${selectedStrategy}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
 
   return `
     <div class="cr-panel" data-cr-root data-state="loading" aria-busy="true">

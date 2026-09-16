@@ -102,9 +102,10 @@ function syncStrategyControl(
     [];
   const strategy = getStrategy(strategies, state.sortStrategy);
   const subscription = getSubscription(subscriptions, state.subscription);
+  const multiplier = copy.subscriptionMultipliers[state.subscription] || "1×";
 
   if (value) {
-    value.textContent = `${strategy.label}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
+    value.textContent = `${multiplier} ${strategy.label}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
   }
   if (trigger instanceof HTMLButtonElement) {
     trigger.setAttribute(
