@@ -11,7 +11,7 @@
 3. 用 [`outputs/ai-radar-frontier.user.js`](./outputs/ai-radar-frontier.user.js) 的完整内容替换编辑器内容并保存。
 4. 打开或刷新：<https://codexradar.com/>，或英文页 <https://codexradar.com/en/?station=codex>
 
-脚本使用 `@grant none`，不请求外部网络、不上传数据、不写入持久化设置。所有控件只保留在当前页面内存中，刷新后回到 Plus、质量、包含 Fast 的默认状态。
+脚本使用 `@grant none`，不请求外部网络、不上传数据；仅在浏览器本地保存订阅、排序和 Fast 开关偏好。首次使用默认是 Plus、质量、包含 Fast，之后刷新会恢复上次选择。
 
 ## 开发与构建
 
@@ -25,6 +25,7 @@ src/
 ├─ radar.ts         DeepSWE、历史、额度、Fast 与社区数据适配
 ├─ scoring.ts       稳定质量、三维支配、策略评分与排序
 ├─ recommendation.ts 策略候选生成与前沿结果
+├─ storage.ts       订阅、排序与 Fast 偏好存储
 ├─ animations.ts    网格与排除详情动画
 ├─ ui.ts            Shadow DOM 模板与卡片渲染
 └─ styles.css       隔离样式

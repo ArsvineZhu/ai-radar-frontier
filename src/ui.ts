@@ -70,6 +70,8 @@ export function createShellMarkup(
       ),
     )
     .join("");
+  const selectedStrategy = strategies[state.sortStrategy]?.label || copy.sort;
+  const selectedStrategyLabel = `${selectedStrategy}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
 
   return `
     <div class="cr-panel" data-cr-root data-state="loading" aria-busy="true">
@@ -79,15 +81,15 @@ export function createShellMarkup(
           <div class="cr-title-row">
             <h2 class="cr-title">${copy.title}</h2>
             <span class="cr-info-wrap">
-              <button class="cr-info" type="button" data-cr-info aria-label="${copy.infoAria}" aria-expanded="false" aria-describedby="cr-frontier-info-tooltip" title="${copy.frontierExplanation}">i</button>
+              <button class="cr-info" type="button" data-cr-info aria-label="${copy.infoAria}" aria-expanded="false" aria-describedby="cr-frontier-info-tooltip">i</button>
               <span class="cr-info-tooltip" id="cr-frontier-info-tooltip" role="tooltip">${copy.frontierExplanation}</span>
             </span>
           </div>
         </div>
         <div class="cr-controls">
           <div class="cr-menu" data-cr-menu>
-            <button class="cr-menu-trigger" type="button" data-cr-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="${copy.sort}">
-              <span class="cr-menu-main"><span class="cr-menu-value" data-cr-menu-value>${copy.sort}</span></span>
+            <button class="cr-menu-trigger" type="button" data-cr-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="${copy.sort}: ${selectedStrategyLabel}">
+              <span class="cr-menu-main"><span class="cr-menu-value" data-cr-menu-value>${selectedStrategyLabel}</span></span>
               <span class="cr-menu-chevron" aria-hidden="true">${CHEVRON_SVG}</span>
             </button>
             <div class="cr-menu-content" data-cr-menu-content data-open="false" aria-hidden="true" role="menu">
@@ -169,6 +171,16 @@ function formatQuotaShare(value: number | null, copy: Copy): string {
   return value === null
     ? copy.quotaUnavailableShort
     : `${copy.approximate} ${(value * 100).toFixed(1)}% / ${copy.week}`;
+}
+
+function renderIqValue(value: number): HTMLElement {
+  const iq = makeElement("strong", "cr-iq");
+  const [integer, decimal] = String(value).split(".");
+  iq.append(makeElement("span", "cr-iq-integer", integer));
+  if (decimal !== undefined) {
+    iq.append(makeElement("span", "cr-iq-decimal", `.${decimal}`));
+  }
+  return iq;
 }
 
 function familyName(record: ScoredRecord): string {
@@ -265,7 +277,7 @@ export function renderCard(
   const iqRow = makeElement("div", "cr-iq-row");
   iqRow.append(
     makeElement("span", "cr-iq-label", "IQ"),
-    makeElement("strong", "cr-iq", String(record.iq)),
+    renderIqValue(record.iq),
   );
 
   const qualityRow = makeElement("div", "cr-quality-row");

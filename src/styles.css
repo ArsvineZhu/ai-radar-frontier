@@ -844,14 +844,24 @@
 }
 
 .cr-iq {
+  display: inline-flex;
+  align-items: baseline;
   color: var(--cr-foreground);
   font-family:
     "Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 29px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  letter-spacing: -0.07em;
   line-height: 0.95;
+}
+
+.cr-iq-integer {
+  font-size: 32px;
+  letter-spacing: -0.08em;
+}
+
+.cr-iq-decimal {
+  font-size: 23px;
+  letter-spacing: -0.06em;
 }
 
 .cr-quality-row {

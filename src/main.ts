@@ -31,6 +31,7 @@ import type { StrategyResult } from "./recommendation.js";
 import { loadRadarSnapshot } from "./radar.js";
 import type { RadarSnapshot } from "./radar.js";
 import { isValidRecord } from "./scoring.js";
+import { loadPreferences, savePreferences } from "./storage.js";
 import {
   createShellMarkup,
   makeElement,
@@ -103,7 +104,7 @@ function syncStrategyControl(
   const subscription = getSubscription(subscriptions, state.subscription);
 
   if (value) {
-    value.textContent = copy.sort;
+    value.textContent = `${strategy.label}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
   }
   if (trigger instanceof HTMLButtonElement) {
     trigger.setAttribute(
@@ -136,6 +137,14 @@ function syncFastControl(state: RuntimeState, copy) {
 function syncControls(state: RuntimeState, copy, strategies, subscriptions) {
   syncStrategyControl(state, copy, strategies, subscriptions);
   syncFastControl(state, copy);
+}
+
+function persistPreferences(state: RuntimeState): void {
+  savePreferences({
+    subscription: state.subscription,
+    sortStrategy: state.sortStrategy,
+    fastEnabled: state.fastEnabled,
+  });
 }
 
 function syncExpandControl(
@@ -854,6 +863,7 @@ function mount(
         if (SUBSCRIPTION_KEYS.includes(selectedSubscription)) {
           state.subscription = selectedSubscription;
         }
+        persistPreferences(state);
         setMenuOpen(false);
         menuTrigger.focus();
         renderCallback();
@@ -884,6 +894,7 @@ function mount(
     fastToggle.checked = state.fastEnabled;
     fastToggle.addEventListener("change", () => {
       state.fastEnabled = fastToggle.checked;
+      persistPreferences(state);
       renderCallback();
     });
   }
@@ -1045,6 +1056,16 @@ function start() {
   }
 
   const state = createState();
+  const preferences = loadPreferences();
+  if (preferences.subscription) {
+    state.subscription = preferences.subscription;
+  }
+  if (preferences.sortStrategy) {
+    state.sortStrategy = preferences.sortStrategy;
+  }
+  if (preferences.fastEnabled !== undefined) {
+    state.fastEnabled = preferences.fastEnabled;
+  }
   const radarState: RadarRuntimeState = {
     snapshot: null,
     error: null,
