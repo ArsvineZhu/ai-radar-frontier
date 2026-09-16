@@ -1,0 +1,4 @@
+family,plan,window,equivalent_capacity,measured,estimated,source,measured_at,raw_text,raw_path,status
+astra,pro20,7d,1847,,,https://codexradar.com/?station=codex,,"$1,847.00",research/raw/pages/codexradar-home.html,current_dom
+sol,pro20,7d,1919.83,,,https://codexradar.com/?station=codex,,"$1,919.83",research/raw/pages/codexradar-home.html,current_dom
+luna,pro20,7d,1145.1,,,https://codexradar.com/?station=codex,,"$1,145.10",research/raw/pages/codexradar-home.html,current_dom

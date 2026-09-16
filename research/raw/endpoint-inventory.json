@@ -1,0 +1,441 @@
+{
+  "retrieved_at": "2026-09-16T10:17:19.905Z",
+  "allowed_hosts": [
+    "codexradar.com",
+    "deng.codexradar.com",
+    "api.codexradar.com"
+  ],
+  "source_categories": [
+    "deep-swe-efficiency",
+    "history-trend",
+    "deep-swe-task-matrix",
+    "quota-radar",
+    "quota-history",
+    "fast-radar",
+    "model-ratings",
+    "degradation-trend-insights",
+    "benchmark-metadata",
+    "page-html",
+    "public-javascript"
+  ],
+  "endpoints": [
+    {
+      "url": "https://api.codexradar.com/api/v1/intelligence-efficiency?benchmark=deep-swe",
+      "category": "deep-swe-efficiency",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "efficiency-current"
+    },
+    {
+      "url": "https://codexradar.com/data/intelligence-efficiency.json",
+      "category": "deep-swe-efficiency-history",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "efficiency-history"
+    },
+    {
+      "url": "https://codexradar.com/api/intelligence-efficiency-metrics?benchmark=deep-swe",
+      "category": "deep-swe-efficiency-fallback",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "efficiency-fallback"
+    },
+    {
+      "url": "https://api.codexradar.com/api/v1/iq-history",
+      "category": "iq-history",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "iq-history"
+    },
+    {
+      "url": "https://api.codexradar.com/api/v1/table",
+      "category": "deep-swe-task-matrix",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "task-table"
+    },
+    {
+      "url": "https://api.codexradar.com/api/v1/leaderboard",
+      "category": "benchmark-metadata-leaderboard",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "leaderboard"
+    },
+    {
+      "url": "https://codexradar.com/data/fast-radar-history.json",
+      "category": "fast-radar-history",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "fast-history"
+    },
+    {
+      "url": "https://codexradar.com/api/radar-insights",
+      "category": "degradation-trend-insights",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "radar-insights"
+    },
+    {
+      "url": "https://codexradar.com/api/model-ratings?history=14",
+      "category": "model-ratings",
+      "discovered_from": "explicit-research-scope",
+      "fetched_id": "community"
+    },
+    {
+      "url": "https://codexradar.com/",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/?harness=codex",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/#submit",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/#gallery",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/?harness=$",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/assets/ai-radar-background-20260815-v1.jpg",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": "Binary/static asset was inventoried but not fetched as a data source."
+    },
+    {
+      "url": "https://codexradar.com/assets/ai-radar-background-light-20260817-v1.jpg",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": "Binary/static asset was inventoried but not fetched as a data source."
+    },
+    {
+      "url": "https://codexradar.com/data/fast-radar-history.json",
+      "category": "fast-radar",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/radar-insights",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/intelligence-efficiency-metrics",
+      "category": "deep-swe-efficiency",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/data/intelligence-efficiency.json?v=20260804-activity24h",
+      "category": "deep-swe-efficiency",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/visual-spatial-reasoning",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/visual-spatial-reasoning-history",
+      "category": "history-trend",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/model-ratings?view=public&history=14&window=${encodeURIComponent(requestWindow)}",
+      "category": "model-ratings",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/model-ratings?view=public&window=${encodeURIComponent(requestWindow)}",
+      "category": "model-ratings",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/model-ratings?view=mine",
+      "category": "model-ratings",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/model-ratings",
+      "category": "model-ratings",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/data/intelligence-efficiency.json?v=station-preview-v1",
+      "category": "deep-swe-efficiency",
+      "discovered_from": "codexradar-home",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/subscriber-count",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/api/subscribe",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/en/",
+      "category": "radar-data",
+      "discovered_from": "codexradar-en",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/en",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/assets/branding/ai-radar-avatar-512.png",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": "Binary/static asset was inventoried but not fetched as a data source."
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/benchmarks",
+      "category": "benchmark-metadata",
+      "discovered_from": "deng-harness-codex",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/avatar/",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/my-submissions?limit=20&period=",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/my-cells",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/mailbox/session",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/integrations/cup/issue",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/rename",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/whoami",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/privacy",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/github/config",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/github/oauth/callback?code=",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/assignments/claim-batch",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/run-plans/reinvite",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/runner/bootstrap-v1/",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/suggest?n=",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/table?ui=",
+      "category": "task-matrix",
+      "discovered_from": "deng-harness-codex",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/assignments/release",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/events?n=20",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/leaderboard",
+      "category": "benchmark-metadata",
+      "discovered_from": "deng-harness-codex",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/leaderboard?view=live",
+      "category": "benchmark-metadata",
+      "discovered_from": "deng-harness-codex",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/iq-history?v=",
+      "category": "history-trend",
+      "discovered_from": "deng-harness-codex",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/intelligence-efficiency?v=",
+      "category": "deep-swe-efficiency",
+      "discovered_from": "deng-harness-codex",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/radar-insights?v=",
+      "category": "radar-data",
+      "discovered_from": "deng-harness-codex",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://static.cloudflareinsights.com/beacon.min.js",
+      "category": "third-party-script-skipped",
+      "discovered_from": "codexradar-en",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/table?ui=20260815-equal-iq-v2",
+      "category": "task-matrix",
+      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-d553a1f21482",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/iq-history?v=20260815-equal-iq-v2",
+      "category": "history-trend",
+      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-d553a1f21482",
+      "fetched": true,
+      "note": null
+    },
+    {
+      "url": "https://deng.codexradar.com/api/v1/intelligence-efficiency?v=20260823-trend-cohort-v1",
+      "category": "history-trend",
+      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-d553a1f21482",
+      "fetched": true,
+      "note": null
+    }
+  ]
+}

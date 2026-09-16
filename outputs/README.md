@@ -41,11 +41,14 @@ npm run format      # 格式化源码与配置
 npm run lint        # Oxlint
 npm run duplication # jscpd 重复代码检查
 npm run knip        # 未使用导出与依赖检查
+npm run research:collect # 重新采集公开 Radar 原始数据与标准化长表
 ```
 
 构建使用 Vite + Terser + CSSO，将 TypeScript、压缩后的 CSS 和模块合并为单个 Tampermonkey Userscript，并保留 `1.0.1` 元数据头。Terser 对 IIFE 内部启用顶层压缩、顶层变量混淆、3 次压缩和调试代码清理，但不启用 unsafe 变换或对象属性名混淆。Prettier 负责格式统一，Oxlint 负责静态检查，jscpd 监测重复代码，Knip 检查未使用的源码出口与依赖。
 
 Userscript 元数据包含 GitHub Raw 的 `@updateURL` / `@downloadURL`。从 Raw 地址安装后，Tampermonkey 会自动检查新版本；发布更新时需要递增 `src/config.ts` 中的 `VERSION`，运行 `npm run build`，然后将提交推送到 `main`。
+
+`research/` 保存公开数据研究快照：`raw/` 保留 HTTP 响应、HTML、公开 JS、响应头摘要和 SHA256；`normalized/` 保存当前候选、全量历史、任务矩阵、额度和 Fast 长表。采集器只访问 `codexradar.com`、`deng.codexradar.com` 和 `api.codexradar.com`，不会运行模型或 benchmark；账号动作、OAuth、claim/release 等公开但非只读接口只进入 inventory，不会请求。
 
 ## 规则
 

@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "knip": "knip",
+    "research:collect": "node scripts/collect-research-data.mjs",
     "test": "tsx --test tests/recommendation.test.ts",
     "lint": "oxlint --deny-warnings src scripts vite.config.ts",
     "typecheck": "tsc --noEmit",

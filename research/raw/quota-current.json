@@ -1,0 +1,49 @@
+{
+  "extraction_type": "DOM/HTML extraction; original HTML is preserved separately",
+  "retrieved_at": "2026-09-16T10:17:19.905Z",
+  "records": [
+    {
+      "family": "astra",
+      "plan": "pro20",
+      "window": "7d",
+      "equivalent_capacity": 1847,
+      "measured": null,
+      "estimated": null,
+      "source": "https://codexradar.com/?station=codex",
+      "measured_at": null,
+      "raw_text": "$1,847.00",
+      "raw_class": "quota-radar-current-card quota-radar-current-card-astra",
+      "raw_path": "research/raw/pages/codexradar-home.html"
+    },
+    {
+      "family": "sol",
+      "plan": "pro20",
+      "window": "7d",
+      "equivalent_capacity": 1919.83,
+      "measured": null,
+      "estimated": null,
+      "source": "https://codexradar.com/?station=codex",
+      "measured_at": null,
+      "raw_text": "$1,919.83",
+      "raw_class": "quota-radar-current-card quota-radar-current-card-sol",
+      "raw_path": "research/raw/pages/codexradar-home.html"
+    },
+    {
+      "family": "luna",
+      "plan": "pro20",
+      "window": "7d",
+      "equivalent_capacity": 1145.1,
+      "measured": null,
+      "estimated": null,
+      "source": "https://codexradar.com/?station=codex",
+      "measured_at": null,
+      "raw_text": "$1,145.10",
+      "raw_class": "quota-radar-current-card quota-radar-current-card-luna",
+      "raw_path": "research/raw/pages/codexradar-home.html"
+    }
+  ],
+  "short_window": {
+    "status": "unavailable",
+    "note": "No current short-window quota value was found in the collected public pages or discovered JSON responses; no value was inferred."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "status": "unavailable",
+  "retrieved_at": "2026-09-16T10:17:19.905Z",
+  "sources": [],
+  "note": "No public quota-history response was found in the collected HTML/JS/API inventory. Current quota cards are preserved in quota-current.json and the original page HTML."
+}
