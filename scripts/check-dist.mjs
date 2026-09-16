@@ -10,6 +10,9 @@ const source = await readFile(distFile, "utf8");
 if (!source.startsWith("// ==UserScript==")) {
   throw new Error("dist is missing the Tampermonkey metadata header");
 }
+if (!source.includes("// ==/UserScript==")) {
+  throw new Error("dist is missing the closing Tampermonkey metadata marker");
+}
 if (!source.includes("// @version      1.0.1")) {
   throw new Error("dist does not contain version 1.0.1");
 }
@@ -19,6 +22,9 @@ if (!updateUrl || updateUrl !== downloadUrl) {
   throw new Error(
     "dist must contain matching @updateURL and @downloadURL metadata",
   );
+}
+if (!source.includes("/* eslint-disable */")) {
+  throw new Error("dist is missing the generated-script lint directive");
 }
 if (source.includes("//# sourceMappingURL=")) {
   throw new Error("dist must not contain a source map reference");

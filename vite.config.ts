@@ -44,7 +44,7 @@ export default defineConfig({
       output: {
         format: "iife",
         entryFileNames: "ai-radar-frontier.user.js",
-        banner: `${USERSCRIPT_METADATA}\n`,
+        banner: `${USERSCRIPT_METADATA}\n/* eslint-disable */\n`,
       },
     },
     terserOptions: {
@@ -61,7 +61,7 @@ export default defineConfig({
       },
       format: {
         comments: (_node, comment) =>
-          /==UserScript==|^\s*@(?:name|namespace|version|description|match|run-at|grant|homepageURL|supportURL|updateURL|downloadURL)\b/.test(
+          /eslint-disable|==\/?UserScript==|^\s*@(?:name|namespace|version|description|match|run-at|grant|homepageURL|supportURL|updateURL|downloadURL)\b/.test(
             comment.value,
           ),
       },
