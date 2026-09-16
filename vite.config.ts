@@ -1,0 +1,60 @@
+import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { minify } from "csso";
+import { defineConfig } from "vite";
+import { USERSCRIPT_METADATA } from "./src/metadata.js";
+
+const root = fileURLToPath(new URL(".", import.meta.url));
+
+function minifyRawStyles() {
+  const stylesId = `${resolve(root, "src/styles.css")}?raw-minified`;
+  return {
+    name: "minify-raw-styles",
+    enforce: "pre" as const,
+    resolveId(source: string, importer?: string) {
+      const normalizedImporter = importer?.replaceAll("\\", "/");
+      if (
+        source === "./styles.css?raw" &&
+        normalizedImporter?.endsWith("/src/ui.ts")
+      ) {
+        return stylesId;
+      }
+      return null;
+    },
+    load(id: string) {
+      if (id !== stylesId) {
+        return null;
+      }
+      const css = readFileSync(resolve(root, "src/styles.css"), "utf8");
+      return `export default ${JSON.stringify(minify(css).css)};`;
+    },
+  };
+}
+
+export default defineConfig({
+  plugins: [minifyRawStyles()],
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+    minify: "terser",
+    sourcemap: false,
+    rollupOptions: {
+      input: resolve(root, "src/main.ts"),
+      output: {
+        format: "iife",
+        entryFileNames: "ai-radar-frontier.user.js",
+        banner: `${USERSCRIPT_METADATA}\n`,
+      },
+    },
+    terserOptions: {
+      compress: {
+        passes: 2,
+      },
+      mangle: true,
+      format: {
+        comments: true,
+      },
+    },
+  },
+});

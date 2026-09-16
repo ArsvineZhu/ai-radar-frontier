@@ -1,0 +1,30 @@
+{
+  "name": "ai-radar-frontier-userscript",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI 雷达效率前沿 Tampermonkey userscript",
+  "scripts": {
+    "build": "vite build && node scripts/export-dist.mjs",
+    "build:check": "npm run build && node scripts/check-dist.mjs",
+    "check": "npm run format:check && npm run typecheck && npm run lint && npm run duplication && npm run knip && npm run build:check",
+    "duplication": "jscpd --config jscpd.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "knip": "knip",
+    "lint": "oxlint --deny-warnings src scripts vite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "csso": "^5.0.5",
+    "jscpd": "^5.2.1",
+    "knip": "^6.35.1",
+    "oxlint": "^1.83.0",
+    "prettier": "^3.9.6",
+    "terser": "^5.51.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}

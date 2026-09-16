@@ -1,0 +1,16 @@
+{
+  "threshold": 2,
+  "minLines": 8,
+  "minTokens": 60,
+  "reporters": ["console"],
+  "path": ["src", "scripts", "vite.config.ts"],
+  "ignore": [
+    "src/i18n.ts",
+    "src/styles.css",
+    "dist/**",
+    "outputs/**",
+    "work/**",
+    "node_modules/**"
+  ],
+  "gitignore": true
+}

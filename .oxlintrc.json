@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "node": true
+  },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "rules": {
+    "eslint/no-unused-vars": "error",
+    "eslint/no-undef": "error",
+    "eslint/no-redeclare": "error",
+    "eslint/no-constant-condition": "error",
+    "eslint/no-unreachable": "error",
+    "eslint/eqeqeq": "warn",
+    "unicorn/no-array-sort": "off"
+  },
+  "ignorePatterns": ["dist/**", "outputs/**", "work/**", "node_modules/**"]
+}
