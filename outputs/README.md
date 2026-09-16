@@ -1,6 +1,6 @@
 # AI 雷达 · 效率前沿
 
-这是一个只读的 Tampermonkey 用户脚本（版本 `1.0.0`）：它会在 `https://codexradar.com/` 或 `https://codexradar.com/en/` 根页面的站点顶部新增效率前沿卡片区，带或不带 `?station=codex` 参数都可以工作。界面会根据页面语言自动显示中文或英文，以 DeepSWE 软件工程能力为主信号，在 IQ、额度负担和耗时之间保留明显的三维取舍。
+这是一个只读的 Tampermonkey 用户脚本（版本 `1.0.1`）：它会在 `https://codexradar.com/` 或 `https://codexradar.com/en/` 根页面的站点顶部新增效率前沿卡片区，带或不带 `?station=codex` 参数都可以工作。界面会根据页面语言自动显示中文或英文，以 DeepSWE 软件工程能力为主信号，在 IQ、额度负担和耗时之间保留明显的三维取舍。
 
 原站的模型卡片、图表、推荐区和社区评分区不会被隐藏或改写。点击新增卡片时，脚本只会滚动到对应的原站卡片并调用原站已有的详情面板。
 
@@ -8,7 +8,7 @@
 
 1. 在 Chrome / Edge 中安装 Tampermonkey。
 2. 打开 Tampermonkey 控制台，选择“添加新脚本”。
-3. 用 [`outputs/ai-radar-frontier.user.js`](./outputs/ai-radar-frontier.user.js) 的完整内容替换编辑器内容并保存。
+3. 推荐直接打开 [Raw 安装地址](https://raw.githubusercontent.com/ArsvineZhu/ai-radar-frontier/main/outputs/ai-radar-frontier.user.js)，在 Tampermonkey 中安装；也可以使用 [`outputs/ai-radar-frontier.user.js`](./outputs/ai-radar-frontier.user.js) 手动导入。
 4. 打开或刷新：<https://codexradar.com/>，或英文页 <https://codexradar.com/en/?station=codex>
 
 脚本使用 `@grant none`，不请求外部网络、不上传数据；仅在浏览器本地保存订阅、排序和 Fast 开关偏好。首次使用默认是 Plus、质量、包含 Fast，之后刷新会恢复上次选择。
@@ -43,7 +43,9 @@ npm run duplication # jscpd 重复代码检查
 npm run knip        # 未使用导出与依赖检查
 ```
 
-构建使用 Vite + Terser + CSSO，将 TypeScript、压缩后的 CSS 和模块合并为单个 Tampermonkey Userscript，并保留 `1.0.0` 元数据头。Prettier 负责格式统一，Oxlint 负责静态检查，jscpd 监测重复代码，Knip 检查未使用的源码出口与依赖。
+构建使用 Vite + Terser + CSSO，将 TypeScript、压缩后的 CSS 和模块合并为单个 Tampermonkey Userscript，并保留 `1.0.1` 元数据头。Terser 对 IIFE 内部启用顶层压缩、顶层变量混淆、3 次压缩和调试代码清理，但不启用 unsafe 变换或对象属性名混淆。Prettier 负责格式统一，Oxlint 负责静态检查，jscpd 监测重复代码，Knip 检查未使用的源码出口与依赖。
+
+Userscript 元数据包含 GitHub Raw 的 `@updateURL` / `@downloadURL`。从 Raw 地址安装后，Tampermonkey 会自动检查新版本；发布更新时需要递增 `src/config.ts` 中的 `VERSION`，运行 `npm run build`，然后将提交推送到 `main`。
 
 ## 规则
 

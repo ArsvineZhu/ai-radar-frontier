@@ -49,11 +49,21 @@ export default defineConfig({
     },
     terserOptions: {
       compress: {
-        passes: 2,
+        passes: 3,
+        toplevel: true,
+        drop_console: true,
+        drop_debugger: true,
+        reduce_funcs: true,
+        reduce_vars: true,
       },
-      mangle: true,
+      mangle: {
+        toplevel: true,
+      },
       format: {
-        comments: true,
+        comments: (_node, comment) =>
+          /==UserScript==|^\s*@(?:name|namespace|version|description|match|run-at|grant|homepageURL|supportURL|updateURL|downloadURL)\b/.test(
+            comment.value,
+          ),
       },
     },
   },

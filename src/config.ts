@@ -1,4 +1,4 @@
-export const VERSION = "1.0.0";
+export const VERSION = "1.0.1";
 export const HOST_ID = "ai-radar-frontier-userscript";
 
 export const SELECTORS = Object.freeze({

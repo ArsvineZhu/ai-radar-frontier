@@ -1,6 +1,6 @@
 {
   "name": "ai-radar-frontier-userscript",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "AI 雷达效率前沿 Tampermonkey userscript",
