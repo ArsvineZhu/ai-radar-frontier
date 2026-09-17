@@ -19,6 +19,7 @@ export interface FastMeasurement {
   effort: string | null;
   ratio: number;
   measuredAt: number | null;
+  source: "live-dom" | "history";
   sampleCount: number | null;
   validPairs?: number | null;
 }
@@ -110,8 +111,8 @@ function normalizePoint(point: unknown): {
   model: string;
   effort: string;
   iq: number;
-  cost: number;
-  minutes: number;
+  benchmarkCostEquivalent: number;
+  benchmarkMinutes: number;
   sampleCount: number | null;
 } | null {
   const raw = asObject(point);
@@ -119,8 +120,8 @@ function normalizePoint(point: unknown): {
   const model = asString(raw.model).toLowerCase();
   const effort = asString(raw.effort).toLowerCase();
   const iq = asNumber(raw.iq);
-  const cost = asNumber(raw.average_price_usd);
-  const minutes = asNumber(raw.average_minutes);
+  const benchmarkCostEquivalent = asNumber(raw.average_price_usd);
+  const benchmarkMinutes = asNumber(raw.average_minutes);
   const sampleCount =
     asNumber(raw.valid_tasks) ??
     asNumber(raw.total) ??
@@ -129,13 +130,20 @@ function normalizePoint(point: unknown): {
     !model ||
     !effort ||
     iq === null ||
-    cost === null ||
-    minutes === null ||
+    benchmarkCostEquivalent === null ||
+    benchmarkMinutes === null ||
     !MODEL_CATALOG[model]
   ) {
     return null;
   }
-  return { model, effort, iq, cost, minutes, sampleCount };
+  return {
+    model,
+    effort,
+    iq,
+    benchmarkCostEquivalent,
+    benchmarkMinutes,
+    sampleCount,
+  };
 }
 
 function normalizeModelId(value: string): string | null {
@@ -226,6 +234,7 @@ function readFastMeasurements(
         effort,
         ratio,
         measuredAt: null,
+        source: "live-dom",
         sampleCount:
           fallbackPairCount(fallback, FAST_MODEL_ID, effort) ??
           currentPairCount,
@@ -257,6 +266,7 @@ function readFastMeasurements(
         effort: runEffort,
         ratio,
         measuredAt,
+        source: "history",
         sampleCount: runSampleCount(run),
         validPairs: runPairCount(run),
       });
@@ -321,8 +331,10 @@ export function createFastEstimator(
       : freshnessReference - FAST_MEASUREMENT_MAX_AGE_DAYS * 86_400_000;
   const freshMeasurements = measurements.filter(
     (measurement) =>
-      measurement.measuredAt === null ||
-      (freshnessCutoff !== null && measurement.measuredAt >= freshnessCutoff),
+      measurement.source === "live-dom" ||
+      (measurement.measuredAt !== null &&
+        freshnessCutoff !== null &&
+        measurement.measuredAt >= freshnessCutoff),
   );
   const exact = new Map<string, FastMeasurement[]>();
   const byModel = new Map<string, FastMeasurement[]>();
@@ -459,15 +471,14 @@ function normalizeRecords(
       label: `${catalog.label} ${normalized.effort}`,
       iq: normalized.iq,
       qualityIq: normalized.iq,
-      cost: normalized.cost,
-      minutes: normalized.minutes,
       index: records.length,
       key: keyFor(normalized.model, normalized.effort),
       sampleCount: normalized.sampleCount,
       quotaBudget20x,
-      quotaShare: null,
       quotaSource: quotaBudget20x === null ? "unavailable" : "family-radar",
       mode: "standard",
+      benchmarkCostEquivalent: normalized.benchmarkCostEquivalent,
+      benchmarkMinutes: normalized.benchmarkMinutes,
     });
   }
   return records;

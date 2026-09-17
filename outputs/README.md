@@ -1,85 +1,152 @@
 # AI 雷达 · 效率前沿
 
-这是一个只读的 Tampermonkey 用户脚本（版本 `1.0.2`）：它会在 `https://codexradar.com/` 或 `https://codexradar.com/en/` 根页面的站点顶部新增效率前沿卡片区，带或不带 `?station=codex` 参数都可以工作。界面会根据页面语言自动显示中文或英文，以 DeepSWE 软件工程能力为主信号，在 IQ、额度负担和耗时之间保留明显的三维取舍。
+这是一个只读的 Tampermonkey TypeScript 用户脚本（版本 1.1.0）。它在 codexradar.com 的 DeepSWE 软件工程能力页顶部增加效率前沿推荐区，不改写原站模型卡片、图表、推荐区或社区评分。点击推荐卡片会滚动到对应的原站卡片并调用原站详情。
 
-原站的模型卡片、图表、推荐区和社区评分区不会被隐藏或改写。点击新增卡片时，脚本只会滚动到对应的原站卡片并调用原站已有的详情面板。
+运行时只读取公开的当前 Radar 数据：DeepSWE 效能接口、页面中的模型族额度雷达，以及公开 Fast E2E 数据。请求范围限定在 codexradar.com、deng.codexradar.com 和 api.codexradar.com。Research 快照不作为运行时依赖，脚本也不会运行模型、benchmark 或上传本地数据。
 
 ## 安装
 
 1. 在 Chrome / Edge 中安装 Tampermonkey。
-2. 打开 Tampermonkey 控制台，选择“添加新脚本”。
-3. 推荐直接打开 [Raw 安装地址](https://raw.githubusercontent.com/ArsvineZhu/ai-radar-frontier/main/outputs/ai-radar-frontier.user.js)，在 Tampermonkey 中安装；也可以使用 [`outputs/ai-radar-frontier.user.js`](./outputs/ai-radar-frontier.user.js) 手动导入。
-4. 打开或刷新：<https://codexradar.com/>，或英文页 <https://codexradar.com/en/?station=codex>
+2. 打开 [Raw 安装地址](https://raw.githubusercontent.com/ArsvineZhu/ai-radar-frontier/main/outputs/ai-radar-frontier.user.js)，在 Tampermonkey 中安装。
+3. 打开或刷新 <https://codexradar.com/?station=codex>，也可以使用英文页 <https://codexradar.com/en/?station=codex>。
 
-脚本使用 `@grant none`，不请求外部网络、不上传数据；仅在浏览器本地保存订阅、排序和 Fast 开关偏好。首次使用默认是 Plus、质量、包含 Fast，之后刷新会恢复上次选择。
+Userscript 元数据包含 GitHub Raw 的 @updateURL 与 @downloadURL。从 Raw 地址安装后，Tampermonkey 会按自身更新设置检查新版本；发布时递增 src/config.ts 的 VERSION，运行 npm run build 并发布生成的 outputs/ai-radar-frontier.user.js。
 
-## 开发与构建
+偏好保存在 HOST_ID:preferences，包括订阅、排序和 Fast 开关。校准单独保存在 HOST_ID:quota-calibration:v1，只使用浏览器 localStorage，不会上传，也不会随普通偏好重置。损坏的校准数据会安全回退为空校准。
 
-源码按标准 TypeScript 项目组织，`dist/` 是构建产物，`outputs/dist/` 是可直接交付的同步副本。不要直接编辑压缩后的 Userscript；修改 `src/` 后重新构建。
+## 推荐模型
+
+推荐对象是 model × effort × mode。Standard 和 Fast 使用独立候选、独立卡片和独立分组。
+
+DeepSWE 的 iq、average_price_usd、average_minutes 分别映射为质量 IQ、基准等价负担输入和基准任务耗时输入。等价费用是 Radar 的标准化测量，不是用户账单；界面主卡只展示周额度负担、简短任务耗时，以及当前计划可用的 5h 耐力或周耐力。
+
+### 计划与容量
+
+模型族 20x 公开容量记为 B7_20x，计划容量为：
+
+```text
+B7(family, plan) = B7_20x(family) × planMultiplier / 20
+planMultiplier = Plus: 1, Pro 5x: 5, Pro 20x: 20
+```
+
+没有当前模型族容量的候选会显示在说明中，但不能获得完整的自动推荐分数。
+
+Plus 初始启用 5 小时窗口模型；Pro 5x 和 Pro 20x 的 5 小时模型保留在配置中但暂不参与推荐。默认短窗口/周容量比例为 0.155，它是临时经验先验，不是官方常量。
+
+### 本地校准
+
+打开校准后先选择订阅。额度观察和代表性任务使用两个模式页签；额度观察内部再切换完整窗口或剩余刻度，界面不会同时展示两套表格。代表性任务表单按需展开，历史观察默认折叠。
+
+额度观察支持完整 5h 窗口和成对剩余刻度两种输入方式。短窗口比例按总暴露量计算：
+
+```text
+kappa = (priorExposure × priorRatio + Σ weeklyDelta)
+         / (priorExposure + Σ shortWindowDelta)
+```
+
+用户也可以记录一个明确确认的、完整且具有代表性的日常编码任务。系统在全局工作负载层估计：
+
+```text
+alpha = typical weekly burden / DeepSWE-equivalent weekly burden
+beta  = actual active minutes / benchmark minutes
+```
+
+有效观察使用对数空间几何中位数。alpha 按额度暴露向默认值 5 收缩，beta 按样本数向 1 收缩。模型、档位、模式和当时的基准值会随观察保存；不满足输入范围的观察保留为 rejected，不参加估计。
+
+默认工作负载比例为 `alpha = 5`。它来自约 `5.55` 个 DeepSWE 等价负担的观测，并取整为产品默认值；因此默认 5h 耐力相对于未缩放值除以约 `5`。用户提交代表性任务后，alpha 会以额度暴露置信度向个人观察值收缩。
+
+### 运行时派生指标
+
+```text
+effectiveMinutes      = beta × benchmarkMinutes
+effectiveWeeklyShare  = alpha × benchmarkCostEquivalent / B7
+effectiveShortShare   = effectiveWeeklyShare / kappa
+H5raw                 = effectiveMinutes / effectiveShortShare
+H5                    = min(H5raw, 5h window duration)
+```
+
+核心效用使用固定尺度，不做当前候选集的 min/max 归一化：
+
+```text
+UQ = ln(1 + max(0, Q - 100) / 4) - (max(0, 100 - Q) / 4)^2
+UT = -log2(effectiveMinutes / 10)
+UW = -log2(effectiveWeeklyShare / 0.01)
+UH = log2(min(H5, windowMinutes) / 60)
+```
+
+IQ 小于 70 是唯一的质量硬门槛。IQ 100 是参考点，IQ 96 没有资格门。没有足够个人工作负载校准时，达到周容量或短窗口容量只显示资源风险；额度校准置信度达到 0.67 后，典型任务负担达到容量才成为自动推荐硬排除。
+
+策略权重集中在 src/config.ts：
+
+| 策略                   | 质量 | 耗时 | 周负担 | 5h 耐力 |
+| ---------------------- | ---: | ---: | -----: | ------: |
+| 综合成效               | 0.45 | 0.25 |   0.20 |    0.10 |
+| 经济                   | 0.20 | 0.10 |   0.45 |    0.25 |
+| 速度                   | 0.20 | 0.55 |   0.10 |    0.15 |
+| 质量（最高 4 IQ 带内） | 0.15 | 0.40 |   0.30 |    0.15 |
+
+短窗口未启用时，5h 耐力权重会移除并对剩余权重重新归一化；此时卡片右侧显示周耐力作为诊断信息。Pareto 只作为诊断。排序完成后，使用 4 IQ、4% 耗时、4% 周负担和 8% 耐力决策容差进行直接实用支配压缩；之后以相同模式和严格的 IQ/耗时/周负担/耐力相似度创建代表组。代表组最多在预览中显示 12 张卡，展开后显示全部有意义的推荐组。Standard 和 Fast 永远不会合并。
+
+Fast 使用可靠的公开 E2E 证据独立生成：
+
+```text
+quality(Fast) = quality(Standard)
+benchmarkCost(Fast) = 2.5 × benchmarkCost(Standard)
+benchmarkMinutes(Fast) = benchmarkMinutes(Standard) / E2E ratio
+```
+
+证据顺序为：模型+档位精确证据、同模型最近 30 天 P25、fastGroup 最近 30 天履约率 P25。实时 DOM 测量标记为 live；没有时间戳的历史观察不会被当作永久新鲜。没有可靠证据时不生成 Fast 候选。
+
+## 交互与动效
+
+界面使用 Shadow DOM 隔离，并采用 Apple HIG 的渐进披露、Geist 的紧凑数字排版和 Shadcn 风格的分段控件、卡片、状态区与 dialog。校准 section 使用轻微淡入、位移和高度过渡；菜单、modal 和卡片保留克制的状态动画。系统开启减少动态效果后，所有切换会降为即时状态。
+
+## 项目结构
 
 ```text
 src/
-├─ main.ts          挂载、观察原站与状态编排
-├─ config.ts        选择器、默认值、模型目录与运行时状态
-├─ i18n.ts          中英文翻译与菜单目录
-├─ radar.ts         当前 DeepSWE、额度与 Fast 数据适配
-├─ scoring.ts       稳定质量、三维支配、策略评分与排序
-├─ recommendation.ts 策略候选生成与前沿结果
-├─ storage.ts       订阅、排序与 Fast 偏好存储
-├─ animations.ts    网格与排除详情动画
-├─ ui.ts            Shadow DOM 模板与卡片渲染
-└─ styles.css       隔离样式
+├─ main.ts            挂载、原站观察、状态和校准交互
+├─ config.ts          选择器、计划、权重、阈值与运行时状态
+├─ calibration.ts     kappa、alpha、beta 与校准状态
+├─ radar.ts           当前 DeepSWE、模型族额度和 Fast 适配
+├─ scoring.ts         派生指标、固定尺度效用、排序、压缩关系
+├─ recommendation.ts  候选生成、资格筛选和推荐组编排
+├─ storage.ts         偏好与独立校准存储
+├─ i18n.ts            中英文翻译与菜单目录
+├─ ui.ts              Shadow DOM 模板、卡片、说明与校准对话框
+├─ animations.ts      网格与说明区动画
+└─ styles.css         隔离样式
 ```
 
-需要 Node.js 运行环境。常用命令：
+research/ 保存公开数据研究快照，分为 raw/、normalized/ 和 analysis/。采集和分析脚本只用于离线研究，保留原始响应、响应摘要、哈希、公式、筛选条件、随机种子和输入哈希；它们不会被打包进运行时。
+
+## 开发与验证
 
 ```bash
 npm install
-npm run check       # Prettier、TypeScript、Oxlint、jscpd、Knip、构建检查
-npm run build       # 生成 dist，并同步 outputs/dist
-npm run format      # 格式化源码与配置
-npm run lint        # Oxlint
-npm run duplication # jscpd 重复代码检查
-npm run knip        # 未使用导出与依赖检查
-npm run research:collect # 重新采集公开 Radar 原始数据与标准化长表
-npm run research:analyze # 基于现有快照生成可复现分析结果
+npm run format
+npm run typecheck
+npm test
+npm run lint
+npm run duplication
+npm run knip
+npm run build:check
+npm run check
 ```
 
-构建使用 Vite + Terser + CSSO，将 TypeScript、压缩后的 CSS 和模块合并为单个 Tampermonkey Userscript，并保留 `1.0.2` 元数据头。Terser 对 IIFE 内部启用顶层压缩、顶层变量混淆、3 次压缩和调试代码清理，但不启用 unsafe 变换或对象属性名混淆。Prettier 负责格式统一，Oxlint 负责静态检查，jscpd 监测重复代码，Knip 检查未使用的源码出口与依赖。
+构建使用 Vite、Terser 和 CSSO，将 TypeScript、压缩 CSS 和模块合并为单个 Tampermonkey Userscript。Terser 启用顶层压缩、顶层变量混淆、3 次压缩、调试代码清理和安全的函数/变量归约；不启用 unsafe 变换或对象属性名混淆。dist/ 是构建产物，outputs/ 是可交付副本。
 
-Userscript 元数据包含 GitHub Raw 的 `@updateURL` / `@downloadURL`。从 Raw 地址安装后，Tampermonkey 会自动检查新版本；发布更新时需要递增 `src/config.ts` 中的 `VERSION`，运行 `npm run build`，然后将提交推送到 `main`。
+## 已知限制
 
-`research/` 保存公开数据研究快照：`raw/` 保留 HTTP 响应、HTML、公开 JS、响应头摘要和 SHA256；`normalized/` 保存当前候选、全量历史、任务矩阵、额度和 Fast 长表。采集器只访问 `codexradar.com`、`deng.codexradar.com` 和 `api.codexradar.com`，不会运行模型或 benchmark；账号动作、OAuth、claim/release 等公开但非只读接口只进入 inventory，不会请求。
-
-`research/analysis/` 保存基于该快照的历史噪声、任务级 bootstrap 两两比较、质量差距分桶、偏好持续性、Fast 汇总、公开额度派生、同语义历史 panel 与排除语义不确定源。分析器不联网、不运行 benchmark、不调用模型、不删除有效异常值；输入文件 SHA256、筛选规则、公式、随机种子和 bootstrap 次数记录在 `research/analysis/analysis-meta.json`。
-
-## 规则
-
-- DeepSWE 软件工程 IQ 是主要质量信号；卡片和主排序使用当前 IQ，历史与任务矩阵仅作为离线 research 输入，不进入浏览器运行时评分；
-- IQ 小于 70 是唯一的硬产品门槛；费用越低、耗时越短越好，指标缺失的模型不会被脚本隐藏；
-- 质量策略在最高质量的 4 IQ band 内按耗时、周额度负担、双方都有值时的样本数和稳定 key 排序；4 IQ 是产品语义参数，不宣称为统计学普适阈值；
-- Pareto 只用于展示严格支配/非支配诊断，不决定评分集合；通过当前 IQ 与额度门的候选都会参与策略排序；
-- 订阅计划与排序策略正交。计划只改变周额度坐标，并使用公开的模型族额度雷达计算计划额度占比；没有当前 family capacity 的候选保留展示但不自动推荐；Plus、Pro 5x、Pro 20x 的倍率分别为 1、5、20，不维护计划与排序的组合权重表；
-- 额度先于策略评分做可行性门：经济、综合成效、质量、速度的单任务周额度占比上限分别为 2.5%、4%、5%、5%。超过本策略上限的候选，以及缺少当前模型族额度数据的候选，不进入自动推荐排序，但会保留在筛选说明中；这只使用公开的周额度数据，不推测当前是否存在 5 小时窗口；
-- “质量”策略选择最高质量的 4 IQ band，再按耗时和周额度负担排序；“综合成效”使用固定绝对尺度的质量、周额度和时间 loss；“经济”先满足 IQ 96 可接受质量，再降低周额度负担并回避超过 45 分钟的耗时；“速度”先满足 IQ 96，再选最短耗时的 5% 近似打平带；
-- 社区体感分可以展示，但不参与 V2 核心评分；Luna Max 可以作为 Plus 阶段的优秀解自然出现，不会被硬编码抬升到更高订阅阶段；
-- Fast 是 Standard 的额外变体：质量不变、额度消耗按 2.5 倍费用等价物折算、耗时按 E2E 比率迁移估算。证据按“模型+档位（至少 3 个有效 pair）→ 同模型最近 30 天 P25（至少 3 条）→ fastGroup 最近 30 天履约率 P25（至少 6 条）”逐级回退；允许实测 ratio ≤ 1，没有可靠可比测量时不生成 Fast 候选；
-- Fast 默认开启，顶部开关可以关闭或重新启用；仅有证据的 Fast 变体进入四种策略评分；
-- Fast 历史测量只在相对当前效率数据不超过 30 天时参与估计，页面当前档位的实时 E2E 数据始终优先；
-- 顶部入口显示为“策略 / Strategy”，菜单分为三层：订阅（Plus、Pro 5x、Pro 20x）、排序（质量、综合成效、经济、速度）和 Fast（包含 Fast / 排除 Fast）；
-- 所有前沿候选都会正常渲染并保留原始排序；折叠视窗在宽屏完整容纳两行（通常 8 张），底部露出下一行顶部并使用柔和的磨砂渐隐遮罩；窗口变窄时至少保留 4 张卡片的可见空间，必要时增加可见行数；
-- 折叠视窗下方提供 SVG 展开按钮，可展开查看全部前沿候选。若任一策略的第一名落在当前可见范围之外，同一个按钮会变为胶囊形，在图标右侧提示还有几个策略第一名，点击整颗按钮即可展开；
-- 排除详情的候选列表使用独立的滚动区域，Fast/IQ 等解释文案位于列表下方、分隔线之后的独立说明 section；
-- 指标缺失的模型不会被脚本隐藏。
-
-## 设计与交互
-
-新增区域使用 Shadow DOM 隔离样式，采用 Vercel / v0 风格的高对比黑白界面，并自动跟随站点深色/浅色主题。视觉采用 Apple HIG 的清晰层级和克制动效、shadcn/ui 的 Card / Badge / Button / Accordion 交互模式，以及 Geist 风格的紧凑标题和等宽数字排版；不引入 React、Tailwind、Radix 或外部字体。`首选`、`成效`、`经济`、`速度`都是金色重点徽标，`Fast` 使用低对比灰白次级徽标。
-
-策略入口采用收窄后的黑色胶囊式菜单按钮，右侧是独立 chevron 分隔区，菜单内部按分割线分组；菜单、三组对称 SVG chevron、卡片视窗展开/收起、渐隐遮罩和排除详情均使用轻量过渡。系统开启“减少动态效果”时自动降为即时状态切换。
-
-卡片显示当前 IQ、相对 IQ 100 的质量裕量、当前套餐的周额度占比和耗时；综合成效使用数值评分，质量、经济、速度使用明确的策略规则，内部评分不再伪装成“质量倍率”。“已移出自动推荐 N 个”可以展开查看每个模型的代表性支配者或额度门原因。切换到软件工程能力或视觉空间推理页时，顶部区域会显示当前筛选范围仍是综合智能，避免展示过期数据。
+- DeepSWE 是标准化软件工程校准工作负载，不代表用户的具体任务分布。
+- 基准等价费用不是用户订阅账单。
+- 默认 alpha 为 5；默认 0.155 短窗口比例是临时经验先验，用户刻度可能有四舍五入。
+- V3 使用全局 alpha/beta；未配对的模型级任务样本无法同时识别模型差异与任务难度。
+- Fast 耗时通常是迁移的 E2E 估计，除非 Radar 提供独立的 Fast DeepSWE 耗时。
+- 公开额度容量、模型数据和 Fast 证据会随 Radar 更新。
+- 校准不能预测确切代码量、有效代码行、token、agent steps 或 cache rate；这些值不作为直接生产力指标。
+- 实用支配是主界面的冗余压缩规则，不是对候选在所有工作负载下都更差的判断。
 
 ## 卸载
 
-在 Tampermonkey 中停用或删除该脚本，然后刷新页面即可恢复为原站界面。
+在 Tampermonkey 中停用或删除该脚本，然后刷新页面即可恢复原站界面。

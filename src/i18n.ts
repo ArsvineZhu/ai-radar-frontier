@@ -5,7 +5,7 @@ import {
   SUBSCRIPTION_KEYS,
 } from "./config.js";
 
-function freezeRecord(value) {
+function freezeRecord(value: any): any {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
     Object.values(value).forEach(freezeRecord);
     Object.freeze(value);
@@ -13,9 +13,22 @@ function freezeRecord(value) {
   return value;
 }
 
-function formatQuotaPercent(value) {
-  return `${(value * 100).toFixed(1).replace(/\.0$/, "")}%`;
+function percent(value: number | null): string {
+  return value === null ? "Unknown" : `${(value * 100).toFixed(1)}%`;
 }
+
+const ZH_CALIBRATION_STATUS = Object.freeze({
+  baseline: "默认估计",
+  initial: "初步校准",
+  calibrated: "个人校准",
+  stable: "稳定校准",
+});
+
+const ZH_WORKLOAD_STATUS = Object.freeze({
+  baseline: "默认",
+  initial: "初步",
+  calibrated: "已校准",
+});
 
 const TRANSLATIONS = freezeRecord({
   en: {
@@ -23,13 +36,15 @@ const TRANSLATIONS = freezeRecord({
     title: "Efficiency Frontier",
     infoAria: "Frontier model explanation",
     frontierExplanation:
-      "Frontier model: uses DeepSWE software-engineering IQ, keeps clear quality/quota/time trade-offs, and creates Fast variants only when Radar E2E evidence is reliable.",
+      "Uses current public DeepSWE software-engineering measurements, plan family capacity, and optional local workload calibration. Standard and Fast remain separate choices.",
     sort: "Strategy",
     subscription: "Subscription",
     sorting: "Sorting",
     fastSection: "Fast",
-    gridAria: "DeepSWE models eligible for the active strategy",
-    details: "Filter details",
+    calibration: "Calibration",
+    openCalibration: "Configure local calibration",
+    gridAria: "DeepSWE recommendation groups for the active strategy",
+    details: "Details",
     notes: "Notes",
     loading: "Loading DeepSWE software-engineering data…",
     originalDetails: "Open original details",
@@ -37,44 +52,44 @@ const TRANSLATIONS = freezeRecord({
     fastInclude: "Include Fast",
     fastExclude: "Exclude Fast",
     fastToggleAria: "Include Fast mode candidates",
-    expandAria: "Show all models",
-    collapseAria: "Show fewer models",
-    fallenHint: (count) =>
-      `${count} strategy winner${count === 1 ? "" : "s"} below`,
-    fallenHintAria: (count) =>
-      `Show the ${count} strategy winner${count === 1 ? "" : "s"} below`,
-    cost: "API-equivalent",
+    expandAria: "Show all meaningful choices",
+    collapseAria: "Show fewer choices",
+    fallenHint: (count: number) =>
+      `${count} meaningful choice${count === 1 ? "" : "s"} below`,
+    fallenHintAria: (count: number) =>
+      `Show ${count} meaningful choice${count === 1 ? "" : "s"} below`,
+    benchmark: "Benchmark",
+    calibrated: "Typical task",
     quality: "Quality",
-    quota: "Quota",
+    quota: "Weekly burden",
+    endurance: "5h endurance",
+    weeklyEndurance: "Weekly endurance",
+    time: "Task time",
+    cardTime: "Time",
+    calibratedCardTime: "Typical time",
+    estimatedTime: "Estimated task time",
+    minutes: " min",
     week: "wk",
-    quotaPerWeek: "weekly quota",
     approximate: "≈",
-    quotaUnavailableShort: "Unknown",
-    time: "Time",
-    estimatedTime: "Estimated time",
-    minutes: "min",
-    currentAbilityPage: "the current ability page",
+    quotaUnavailableShort: "Unavailable",
     inactiveTitle: "Different ability view",
-    inactiveDescription: (modeName) =>
-      `This panel is scoped to DeepSWE software-engineering data; ${modeName} is shown by the original page.`,
+    inactiveDescription: (modeName: string) =>
+      `This panel uses DeepSWE software-engineering data; ${modeName} is shown by the original page.`,
     strategies: {
       quality: { label: "Quality", winnerLabel: "Preferred" },
-      effectiveness: {
-        label: "Composite effectiveness",
-        winnerLabel: "Effectiveness",
-      },
+      effectiveness: { label: "Effectiveness", winnerLabel: "Effectiveness" },
       budget: { label: "Economy", winnerLabel: "Economy" },
       speed: { label: "Speed", winnerLabel: "Speed" },
     },
     strategyDescriptions: {
       quality:
-        "Stable quality first; near the top quality band, prefer faster and lighter candidates.",
+        "Stay within the highest 4-IQ band, then compare time, weekly burden, and endurance.",
       effectiveness:
-        "Choose the balanced knee point across quality, time, and quota burden.",
+        "Balance quality, effective task time, weekly burden, and short-window endurance.",
       budget:
-        "Reach an acceptable quality level, then minimize weekly quota burden without extreme delay.",
+        "Prefer lower effective weekly burden while retaining useful software-engineering quality.",
       speed:
-        "Reach the quality floor, then minimize measured or conservatively estimated E2E time.",
+        "Prefer shorter effective task time while retaining useful quality and quota endurance.",
     },
     subscriptions: { plus: "Plus", pro5: "Pro 5x", pro20: "Pro 20x" },
     subscriptionMultipliers: { plus: "1×", pro5: "5×", pro20: "20×" },
@@ -84,99 +99,162 @@ const TRANSLATIONS = freezeRecord({
     },
     errorTitle: "Unable to read DeepSWE software-engineering data",
     errorLoading:
-      "The radar reported a loading problem. You can refresh the original source.",
+      "The radar reported a loading problem. Refresh the original source and try again.",
     errorMissing: "The radar has not provided usable DeepSWE model data yet.",
     refresh: "Refresh source",
     noModelsTitle: `No model meets IQ ${IQ_MINIMUM}`,
-    noModelsDescription: `All current models are below the IQ ${IQ_MINIMUM} threshold; the original page is unchanged.`,
+    noModelsDescription: `Current models below IQ ${IQ_MINIMUM} are retained in the details; no automatic recommendation is possible.`,
     noValidTitle: "No valid models to display",
     noValidDescription:
-      "The original cards do not contain all three comparable metrics; the original page is unchanged.",
-    noQuotaModelsTitle: "No model fits this plan's quota gate",
+      "The current source did not provide all required comparable measurements.",
+    noQuotaModelsTitle: "No complete automatic recommendation",
     noQuotaModelsDescription:
-      "Candidates either exceed this strategy's sustainable per-task limit or lack a public family capacity; they remain in the details below.",
-    noDominatedTitle: "Pareto diagnostic",
+      "A current family quota capacity is required for automatic scoring; unavailable candidates remain in details.",
+    noDominatedTitle: "No excluded practical duplicate",
     noDominatedDescription:
-      "Pareto is shown as a diagnostic and does not decide the scoring set.",
-    dominanceRule:
-      "Pareto is diagnostic only; every candidate that passes the active IQ and quota gates remains in strategy ordering.",
-    excluded: (count) => `${count} candidates outside auto-recommendation`,
-    dominanceCheck: "Pareto diagnostic",
-    fastNote: ({ included, exact, model, group, omitted, frontier }) =>
-      `Fast is an E2E-transferred estimate: ${included} variants entered evaluation; ${exact} use model-and-effort evidence, ${model} use same-model P25, and ${group} use fastGroup fulfillment P25. ${omitted} variants had insufficient evidence and were omitted; ${frontier} are Pareto diagnostic frontier entries.`,
-    lowIqNote: (count) =>
-      `${count} models with IQ < ${IQ_MINIMUM} were filtered.`,
-    iqFloorReason: (iq) =>
-      `IQ ${iq} is below the automatic floor of ${IQ_MINIMUM}`,
-    invalidNote: (count) =>
-      `${count} cards lacked IQ, cost, or duration and were not evaluated.`,
-    ariaRank: (rank) => `Rank ${rank}`,
-    ariaPreferred: (labels) => (labels.length ? `, ${labels.join(", ")}` : ""),
-    ariaFast: (multiplier, level, sampleCount) =>
-      `, Fast E2E ${multiplier}, ${level ?? "unknown"} evidence, ${sampleCount ?? 0} supporting samples, transferred time estimate, cost ${FAST_COST_MULTIPLIER}×`,
+      "Pareto is diagnostic only. Practical compression is applied after ranking.",
+    excluded: (count: number) => `${count} candidates outside the main choices`,
+    dominanceCheck: "Recommendation details",
+    fastNote: ({ included, exact, model, group, omitted }: any) =>
+      `Fast: ${included} variants included; ${exact} exact, ${model} same-model, ${group} fastGroup evidence; ${omitted} omitted for insufficient evidence. Fast uses a transferred E2E estimate and ${FAST_COST_MULTIPLIER}× benchmark-equivalent cost.`,
+    lowIqNote: (count: number) =>
+      `${count} candidate${count === 1 ? "" : "s"} below IQ ${IQ_MINIMUM}.`,
+    iqFloorReason: (iq: number) =>
+      `IQ ${iq} is below the automatic floor of ${IQ_MINIMUM}.`,
+    invalidNote: (count: number) =>
+      `${count} candidate${count === 1 ? "" : "s"} lacked valid benchmark data.`,
+    resourceNote: (weekly: number, short: number) =>
+      `${weekly + short} candidates exceed calibrated resource capacity and were withheld from automatic recommendation.`,
+    practicalNote: (count: number) =>
+      `${count} ranked candidate${count === 1 ? "" : "s"} were practically dominated by an earlier, materially comparable choice.`,
+    quotaDataNote:
+      "Weekly burden is a family-capacity share. API-equivalent benchmark cost is an input, not a user bill.",
+    qualityDataNote:
+      "Quality uses current DeepSWE software-engineering IQ. DeepSWE is a calibration workload, not a claim about the exact user's task.",
+    calibrationNote:
+      "Calibration stays in this browser only. It is never uploaded.",
+    benchmarkLabel: (value: string) => `DeepSWE-equivalent ${value}`,
+    calibratedLabel: (value: string) => `Typical-task ${value}`,
+    quotaValue: (value: number | null) =>
+      value === null ? "Unavailable" : `${percent(value)} / week`,
+    enduranceValue: (value: number | null, hours: number) =>
+      value === null
+        ? "Unavailable"
+        : value >= hours * 60
+          ? `≥ ${hours}h`
+          : `${value.toFixed(1)} min`,
+    weeklyEnduranceValue: (value: number | null) =>
+      value === null
+        ? "Unavailable"
+        : value >= 60
+          ? `${(value / 60).toFixed(1)}h`
+          : `${value.toFixed(1)} min`,
+    quotaReason: "Current family quota capacity is unavailable.",
+    weeklyResourceReason:
+      "Calibrated typical-task share reaches the weekly capacity.",
+    shortResourceReason:
+      "Calibrated typical-task share reaches the active short-window capacity.",
+    practicalReason:
+      "A higher-ranked choice is within the decision tolerances and materially lighter or faster.",
+    fastReason:
+      "Fast evidence was not sufficient to create a separate candidate.",
+    alternativesTitle: (count: number) =>
+      `${count} similar alternative${count === 1 ? "" : "s"}; open details to compare deltas`,
+    fastBadgeTitle: ({ source, multiplier, sampleCount, ageDays }: any) =>
+      `${source} · E2E ${multiplier} · ${sampleCount ?? 0} supporting samples${ageDays === null || ageDays === undefined ? " · live" : ` · ${ageDays.toFixed(1)}d old`} · transferred time · ${FAST_COST_MULTIPLIER}× benchmark-equivalent cost`,
+    fastExactSource: "Radar E2E · model and effort",
+    fastModelSource: "Radar E2E · same model",
+    fastGroupSource: "Radar E2E · fastGroup",
+    announced: (
+      count: number,
+      strategy: string,
+      candidates: number,
+      groups: number,
+    ) =>
+      `${count} scoreable candidates, ${groups} meaningful groups, sorted by ${strategy}; ${candidates} Fast candidates evaluated.`,
+    announcedInactive: (modeName: string) =>
+      `Now on ${modeName}; the panel remains scoped to DeepSWE software engineering.`,
+    announcedOriginalChanged:
+      "The original data changed. Try again in a moment.",
     cardAria: ({
+      rankLabel,
       label,
       modeLabel,
-      strategyLabel,
-      strategyDescription,
       winnerText,
       fastDescription,
       iq,
       qualityMargin,
       quota,
-      cost,
       time,
-      quotaGate,
-      evidence,
-      timeLabel,
-      rankLabel,
-      qualityLabel,
-      quotaLabel,
-      costLabel,
+      endurance,
+      strategyLabel,
+      strategyDescription,
       originalDetails,
-    }) =>
-      `${rankLabel}, ${label}${modeLabel}, ${strategyLabel} (${strategyDescription})${winnerText}${fastDescription}, IQ ${iq}, ${qualityLabel} ${qualityMargin}, ${quotaLabel} ${quota} (${quotaGate}), ${timeLabel} ${time}, ${costLabel} ${cost}${evidence ? `, ${evidence}` : ""}, ${originalDetails}`,
-    fastBadgeTitle: ({ source, multiplier, sampleCount, ageDays }) =>
-      `${source} · E2E ${multiplier} · ${sampleCount} supporting samples${ageDays === null || ageDays === undefined ? " · live" : ` · ${ageDays.toFixed(1)}d old`} · API-equivalent cost ${FAST_COST_MULTIPLIER}× · transferred time estimate`,
-    fastExactSource: "Radar E2E · model and effort",
-    fastModelSource: "Radar E2E · same model",
-    fastGroupSource: "Radar E2E · fastGroup",
-    announced: (count, strategy, candidates) =>
-      `${count} eligible models, sorted by ${strategy}; ${candidates} Fast candidates evaluated.`,
-    announcedInactive: (modeName) =>
-      `Now on ${modeName}; the filter remains Composite Intelligence.`,
-    announcedOriginalChanged:
-      "The original data just changed. Try again in a moment.",
-    qualityDataNote:
-      "The primary quality signal is current DeepSWE software-engineering IQ. Historical and task-matrix data are offline research inputs and do not alter the runtime score.",
-    quotaDataNote:
-      "Weekly quota is a family-specific equivalent burden, not a universal account-dollar balance. Candidates without a current family capacity remain visible but are not auto-recommended.",
-    quotaGateNote: ({ overLimit, unknown, limit }) =>
-      `Quota gate: the ${formatQuotaPercent(limit)} per-task weekly-share limit excluded ${overLimit} over-limit candidate${overLimit === 1 ? "" : "s"} and ${unknown} candidate${unknown === 1 ? "" : "s"} without a current family quota value.`,
-    quotaOverLimit: (share, limit) =>
-      `~${(share * 100).toFixed(1)}% weekly quota per task; above this strategy's ${formatQuotaPercent(limit)} automatic limit`,
-    quotaUnavailable:
-      "No current model-family quota value; withheld from automatic recommendation",
-    quotaGate: (limit) => `automatic gate ${formatQuotaPercent(limit)}`,
-    fastEvidence: ({ level, sampleCount, ageDays }) =>
-      `Fast ${level ?? "unknown"} evidence, ${sampleCount ?? 0} supporting samples${ageDays === null || ageDays === undefined ? ", live" : `, ${ageDays.toFixed(1)} days old`}, transferred E2E estimate`,
-    shortWindowNote: (hours) =>
-      `This Plus result does not quantify the known ${hours}h short-window capacity; only the public 7-day family quota burden is used.`,
-    paretoNote: (count) =>
-      `${count} eligible candidates are strictly dominated in the Pareto diagnostic; they remain in strategy ordering.`,
+      alternatives,
+    }: any) =>
+      `${rankLabel}, ${label}${modeLabel}${winnerText}${fastDescription}, ${strategyLabel}: ${strategyDescription}, IQ ${iq}, quality ${qualityMargin}, weekly burden ${quota}, ${time}, ${endurance}${alternatives ? `, ${alternatives}` : ""}, ${originalDetails}`,
+    ariaRank: (rank: number) => `Rank ${rank}`,
+    ariaPreferred: (labels: string[]) =>
+      labels.length ? `, ${labels.join(", ")}` : "",
+    ariaFast: (
+      multiplier: string,
+      level: string | undefined,
+      sampleCount: number | undefined,
+    ) =>
+      `, Fast E2E ${multiplier}, ${level ?? "unknown"} evidence, ${sampleCount ?? 0} supporting samples`,
+    fastEvidence: ({ level, sampleCount, ageDays }: any) =>
+      `Fast ${level ?? "unknown"} evidence, ${sampleCount ?? 0} samples${ageDays === null || ageDays === undefined ? ", live" : `, ${ageDays.toFixed(1)} days old`}`,
+    calibrationDialogTitle: "Local calibration",
+    close: "Close",
+    save: "Save observation",
+    resetCalibration: "Reset calibration",
+    observations: "Saved observations",
+    deleteObservation: "Delete",
+    completeWindows: "Complete 5h windows",
+    pairedMeters: "Paired remaining meters",
+    quotaObservation: "Quota observation",
+    workloadObservation: "Representative task",
+    fullWindowMode: "Complete window",
+    meterMode: "Remaining meters",
+    quotaObservationHint: "Choose one way to record a confirmed quota change.",
+    workloadObservationHint:
+      "Only record a complete task that resembles your normal work.",
+    fullWindows: "5h windows consumed",
+    shortBefore: "5h remaining before (%)",
+    shortAfter: "5h remaining after (%)",
+    weeklyBefore: "Weekly remaining before (%)",
+    weeklyAfter: "Weekly remaining after (%)",
+    representativeTask:
+      "This was a complete task reasonably representative of my normal coding work.",
+    representativeSection: "Representative workload",
+    modelEffort: "Model × effort",
+    executionMode: "Execution mode",
+    actualMinutes: "Active task minutes",
+    calibrationStatus: ({
+      ratio,
+      exposure,
+      status,
+      alpha,
+      beta,
+      workloadStatus,
+    }: any) =>
+      `5h ≈ ${(ratio * 100).toFixed(1)}% weekly · ${status} · ${exposure.toFixed(1)} window exposure. Typical workload α ${alpha.toFixed(2)}, β ${beta.toFixed(2)} · ${workloadStatus}.`,
+    noCalibration: "Default estimate · no personal observations",
   },
   zh: {
     eyebrow: "AI RADAR / FRONTIER",
     title: "效率前沿",
     infoAria: "前沿模型说明",
     frontierExplanation:
-      "前沿模型：使用 DeepSWE 软件工程 IQ，保留质量、额度、耗时之间的明显取舍；只有存在可靠雷达 E2E 证据时才生成 Fast 候选。",
+      "使用当前公开 DeepSWE 软件工程测量、套餐模型族容量和可选的本地工作负载校准；Standard 与 Fast 始终是独立选择。",
     sort: "策略",
     subscription: "订阅",
     sorting: "排序",
     fastSection: "Fast",
-    gridAria: "通过当前策略门槛的 DeepSWE 模型",
-    details: "筛选说明",
+    calibration: "校准",
+    openCalibration: "配置本地校准",
+    gridAria: "当前策略的 DeepSWE 推荐组",
+    details: "说明",
     notes: "说明",
     loading: "正在读取 DeepSWE 软件工程数据…",
     originalDetails: "打开原站详情",
@@ -184,21 +262,27 @@ const TRANSLATIONS = freezeRecord({
     fastInclude: "包含 Fast",
     fastExclude: "排除 Fast",
     fastToggleAria: "启用 Fast 模式候选",
-    expandAria: "展开查看全部模型",
-    collapseAria: "收起到精选模型",
-    fallenHint: (count) => `还有 ${count} 个策略第一名`,
-    fallenHintAria: (count) => `展开查看下方 ${count} 个策略第一名`,
-    cost: "等价费用",
+    expandAria: "展开查看全部有意义的选择",
+    collapseAria: "收起到精选选择",
+    fallenHint: (count: number) => `还有 ${count} 个有意义的选择`,
+    fallenHintAria: (count: number) => `展开查看下方 ${count} 个有意义的选择`,
+    benchmark: "基准",
+    calibrated: "典型任务",
     quality: "质量",
-    quota: "额度",
-    week: "周",
-    quotaPerWeek: "周额度",
-    approximate: "≈",
-    quotaUnavailableShort: "未知",
-    time: "耗时",
-    estimatedTime: "估计耗时",
+    quota: "周额度负担",
+    endurance: "5h 耐力",
+    weeklyEndurance: "周耐力",
+    time: "任务耗时",
+    cardTime: "耗时",
+    calibratedCardTime: "典型耗时",
+    estimatedTime: "估计任务耗时",
     minutes: "分钟",
-    currentAbilityPage: "当前能力页",
+    week: "周",
+    approximate: "≈",
+    quotaUnavailableShort: "不可用",
+    inactiveTitle: "当前不是软件工程能力页",
+    inactiveDescription: (modeName: string) =>
+      `此面板使用 DeepSWE 软件工程数据；当前页面由原站显示${modeName}。`,
     strategies: {
       quality: { label: "质量", winnerLabel: "首选" },
       effectiveness: { label: "综合成效", winnerLabel: "成效" },
@@ -206,93 +290,143 @@ const TRANSLATIONS = freezeRecord({
       speed: { label: "速度", winnerLabel: "速度" },
     },
     strategyDescriptions: {
-      quality:
-        "先看稳定质量；进入最高质量带后，再优先耗时更短、额度负担更轻的候选。",
-      effectiveness: "在质量、耗时和周额度负担之间选择前沿拐点。",
-      budget: "先达到可接受质量，再降低周额度负担，同时避免极端耗时。",
-      speed: "先达到质量下限，再优先最短的实测或保守估计 E2E。",
+      quality: "先保留最高质量 4 IQ 带，再比较耗时、周额度负担和短窗口耐力。",
+      effectiveness: "综合比较质量、典型任务耗时、周额度负担和短窗口耐力。",
+      budget: "在保留有用软件工程质量的同时，优先降低典型任务的周额度负担。",
+      speed: "在保留有用质量的同时，优先降低典型任务耗时并保持额度耐力。",
     },
     subscriptions: { plus: "Plus", pro5: "Pro 5x", pro20: "Pro 20x" },
     subscriptionMultipliers: { plus: "1×", pro5: "5×", pro20: "20×" },
     modeNames: { software: "软件工程能力", visual: "视觉空间推理" },
-    inactiveTitle: "当前不是软件工程能力页",
-    inactiveDescription: (modeName) =>
-      `此面板只使用 DeepSWE 软件工程数据；当前页面由原站显示${modeName}。`,
     errorTitle: "暂时无法读取 DeepSWE 软件工程数据",
-    errorLoading: "原站报告了加载问题，可以使用原站刷新。",
+    errorLoading: "原站报告了加载问题，可以刷新原站后重试。",
     errorMissing: "原站尚未提供可用的 DeepSWE 模型数据。",
-    refresh: "使用原站刷新",
-    noModelsTitle: `没有达到 IQ ${IQ_MINIMUM} 的模型`,
-    noModelsDescription: `当前模型均低于 IQ ${IQ_MINIMUM} 门槛；原站内容保持不变。`,
+    refresh: "刷新原站数据",
+    noModelsTitle: `没有达到 IQ ${IQ_MINIMUM}`,
+    noModelsDescription: `当前低于 IQ ${IQ_MINIMUM} 的模型仍保留在说明中，无法自动推荐。`,
     noValidTitle: "暂时没有可展示的有效模型",
-    noValidDescription: "原站卡片缺少可比较的三项指标；原站内容保持不变。",
-    noQuotaModelsTitle: "当前套餐没有通过额度门的模型",
+    noValidDescription: "当前原站没有提供完整的可比较测量值。",
+    noQuotaModelsTitle: "没有完整的自动推荐",
     noQuotaModelsDescription:
-      "候选要么超过本策略的单任务可持续额度上限，要么缺少公开的模型族容量；候选仍保留在下方说明中。",
-    noDominatedTitle: "Pareto 诊断",
-    noDominatedDescription: "Pareto 仅用于诊断，不决定参与策略评分的候选集合。",
-    dominanceRule:
-      "Pareto 仅用于诊断；通过当前 IQ 和额度门的候选都会保留在策略排序中。",
-    excluded: (count) => `已移出自动推荐 ${count} 个候选`,
-    dominanceCheck: "Pareto 诊断",
-    fastNote: ({ included, exact, model, group, omitted, frontier }) =>
-      `Fast 是迁移得到的 E2E 估计：${included} 个变体进入评估；${exact} 个使用模型和档位证据，${model} 个使用同模型 P25，${group} 个使用 fastGroup 履约率 P25。${omitted} 个因证据不足而不生成；${frontier} 个属于 Pareto 诊断前沿。`,
-    lowIqNote: (count) => `${count} 张 IQ < ${IQ_MINIMUM} 的模型已按门槛过滤。`,
-    iqFloorReason: (iq) => `IQ ${iq} 低于自动推荐门槛 ${IQ_MINIMUM}`,
-    invalidNote: (count) =>
-      `${count} 张数据因缺少 IQ、费用或耗时，未参与筛选。`,
-    ariaRank: (rank) => `第 ${rank} 位`,
-    ariaPreferred: (labels) => (labels.length ? `，${labels.join("、")}` : ""),
-    ariaFast: (multiplier, level, sampleCount) =>
-      `，Fast E2E ${multiplier}，${level ?? "未知"} 证据，${sampleCount ?? 0} 个支持样本，迁移的 E2E 估计耗时，费用 ${FAST_COST_MULTIPLIER} 倍`,
+      "自动评分需要当前模型族额度容量；不可用的候选仍保留在说明中。",
+    noDominatedTitle: "没有被移出的实用重复项",
+    noDominatedDescription: "Pareto 只作诊断；实用压缩在排序之后进行。",
+    excluded: (count: number) => `已移出主推荐 ${count} 个候选`,
+    dominanceCheck: "推荐说明",
+    fastNote: ({ included, exact, model, group, omitted }: any) =>
+      `Fast：${included} 个变体纳入；${exact} 个有精确证据，${model} 个使用同模型证据，${group} 个使用 fastGroup 证据；${omitted} 个因证据不足未生成。Fast 使用迁移的 E2E 耗时估计和 ${FAST_COST_MULTIPLIER} 倍基准等价费用。`,
+    lowIqNote: (count: number) => `${count} 个候选低于 IQ ${IQ_MINIMUM}。`,
+    iqFloorReason: (iq: number) => `IQ ${iq} 低于自动推荐下限 ${IQ_MINIMUM}。`,
+    invalidNote: (count: number) => `${count} 个候选缺少有效基准数据。`,
+    resourceNote: (weekly: number, short: number) =>
+      `${weekly + short} 个候选达到已校准的资源容量，因此不自动推荐。`,
+    practicalNote: (count: number) =>
+      `${count} 个已排序候选被更早且在决策容差内更轻/更快的选择实用支配。`,
+    quotaDataNote:
+      "周额度负担是模型族容量占比；基准等价费用只是输入，不是用户账单。",
+    qualityDataNote:
+      "质量使用当前 DeepSWE 软件工程 IQ。DeepSWE 是校准工作负载，不等于用户的具体任务。",
+    calibrationNote: "校准只保存在本浏览器中，不会上传。",
+    benchmarkLabel: (value: string) => `DeepSWE 等价${value}`,
+    calibratedLabel: (value: string) => `典型任务${value}`,
+    quotaValue: (value: number | null) =>
+      value === null ? "不可用" : `${percent(value)} / 周`,
+    enduranceValue: (value: number | null, hours: number) =>
+      value === null
+        ? "不可用"
+        : value >= hours * 60
+          ? `≥ ${hours} 小时`
+          : `${value.toFixed(1)} 分钟`,
+    weeklyEnduranceValue: (value: number | null) =>
+      value === null
+        ? "不可用"
+        : value >= 60
+          ? `${(value / 60).toFixed(1)} 小时`
+          : `${value.toFixed(1)} 分钟`,
+    quotaReason: "当前模型族额度容量不可用。",
+    weeklyResourceReason: "已校准的典型任务周额度占比达到周容量。",
+    shortResourceReason: "已校准的典型任务周额度占比达到当前短窗口容量。",
+    practicalReason: "更高排序的选择在决策容差内，同时有明显更轻或更快的优势。",
+    fastReason: "Fast 证据不足，未生成独立候选。",
+    alternativesTitle: (count: number) =>
+      `${count} 个相近替代项；打开说明比较真实差异`,
+    fastBadgeTitle: ({ source, multiplier, sampleCount, ageDays }: any) =>
+      `${source} · E2E ${multiplier} · ${sampleCount ?? 0} 个支持样本${ageDays === null || ageDays === undefined ? " · 当前" : ` · ${ageDays.toFixed(1)} 天前`} · 迁移耗时 · 基准等价费用 ${FAST_COST_MULTIPLIER} 倍`,
+    fastExactSource: "雷达 E2E · 模型和档位",
+    fastModelSource: "雷达 E2E · 同模型",
+    fastGroupSource: "雷达 E2E · fastGroup",
+    announced: (
+      count: number,
+      strategy: string,
+      candidates: number,
+      groups: number,
+    ) =>
+      `${count} 个可评分候选，${groups} 个有意义的推荐组，当前排序：${strategy}；已评估 ${candidates} 个 Fast 候选。`,
+    announcedInactive: (modeName: string) =>
+      `当前已切换到${modeName}，面板仍限定为 DeepSWE 软件工程能力。`,
+    announcedOriginalChanged: "原站数据刚刚更新，请稍候重试。",
     cardAria: ({
+      rankLabel,
       label,
       modeLabel,
-      strategyLabel,
-      strategyDescription,
       winnerText,
       fastDescription,
       iq,
       qualityMargin,
       quota,
-      cost,
       time,
-      quotaGate,
-      evidence,
-      timeLabel,
-      rankLabel,
-      qualityLabel,
-      quotaLabel,
-      costLabel,
+      endurance,
+      strategyLabel,
+      strategyDescription,
       originalDetails,
-    }) =>
-      `${rankLabel}，${label}${modeLabel}，${strategyLabel}（${strategyDescription}）${winnerText}${fastDescription}，IQ ${iq}，${qualityLabel} ${qualityMargin}，${quotaLabel} ${quota}（${quotaGate}），${timeLabel} ${time}，${costLabel} ${cost}${evidence ? `，${evidence}` : ""}，${originalDetails}`,
-    fastBadgeTitle: ({ source, multiplier, sampleCount, ageDays }) =>
-      `${source} · E2E ${multiplier} · ${sampleCount} 个支持样本${ageDays === null || ageDays === undefined ? " · 当前" : ` · ${ageDays.toFixed(1)} 天前`} · 等价费用 ${FAST_COST_MULTIPLIER} 倍 · 迁移估计耗时`,
-    fastExactSource: "雷达 E2E · 模型和档位",
-    fastModelSource: "雷达 E2E · 同模型",
-    fastGroupSource: "雷达 E2E · fastGroup",
-    announced: (count, strategy, candidates) =>
-      `${count} 个候选通过门槛，当前排序：${strategy}；已评估 ${candidates} 个 Fast 候选。`,
-    announcedInactive: (modeName) =>
-      `当前已切换到${modeName}，筛选范围仍是综合智能。`,
-    announcedOriginalChanged: "原站数据刚刚更新，请稍候重试。",
-    qualityDataNote:
-      "主质量指标为当前 DeepSWE 软件工程 IQ；历史与任务矩阵仅用于离线研究，不改变运行时评分。",
-    quotaDataNote:
-      "周额度是模型族等价额度负担，不是通用账户美元余额；缺少当前模型族容量的数据仍会显示，但不自动推荐。",
-    quotaGateNote: ({ overLimit, unknown, limit }) =>
-      `额度门：单任务周额度占比上限为 ${formatQuotaPercent(limit)}，有 ${overLimit} 个候选超过本策略上限，另有 ${unknown} 个缺少当前模型族额度数据。`,
-    quotaOverLimit: (share, limit) =>
-      `单任务约占周额度 ${(share * 100).toFixed(1)}%，超过本策略 ${formatQuotaPercent(limit)} 的自动推荐上限`,
-    quotaUnavailable: "缺少当前模型族额度数据，不参与自动推荐",
-    quotaGate: (limit) => `自动门上限 ${formatQuotaPercent(limit)}`,
-    fastEvidence: ({ level, sampleCount, ageDays }) =>
-      `Fast 证据：${level ?? "未知"}，${sampleCount ?? 0} 个支持样本${ageDays === null || ageDays === undefined ? "，当前" : `，${ageDays.toFixed(1)} 天前`}，迁移的 E2E 估计耗时`,
-    shortWindowNote: (hours) =>
-      `Plus 已知存在 ${hours} 小时窗口，但当前没有可验证的窗口容量；这里只量化公开的 7 天模型族额度负担。`,
-    paretoNote: (count) =>
-      `${count} 个候选在 Pareto 诊断中被严格支配，但仍保留在策略排序中。`,
+      alternatives,
+    }: any) =>
+      `${rankLabel}，${label}${modeLabel}${winnerText}${fastDescription}，${strategyLabel}：${strategyDescription}，IQ ${iq}，质量 ${qualityMargin}，周额度负担 ${quota}，${time}，${endurance}${alternatives ? `，${alternatives}` : ""}，${originalDetails}`,
+    ariaRank: (rank: number) => `第 ${rank} 位`,
+    ariaPreferred: (labels: string[]) =>
+      labels.length ? `，${labels.join("、")}` : "",
+    ariaFast: (
+      multiplier: string,
+      level: string | undefined,
+      sampleCount: number | undefined,
+    ) =>
+      `，Fast E2E ${multiplier}，${level ?? "未知"} 证据，${sampleCount ?? 0} 个支持样本`,
+    fastEvidence: ({ level, sampleCount, ageDays }: any) =>
+      `Fast 证据：${level ?? "未知"}，${sampleCount ?? 0} 个样本${ageDays === null || ageDays === undefined ? "，当前" : `，${ageDays.toFixed(1)} 天前`}`,
+    calibrationDialogTitle: "本地校准",
+    close: "关闭",
+    save: "保存观察",
+    resetCalibration: "重置校准",
+    observations: "已保存的观察",
+    deleteObservation: "删除",
+    completeWindows: "完整 5h 窗口",
+    pairedMeters: "成对剩余刻度",
+    quotaObservation: "额度观察",
+    workloadObservation: "代表性任务",
+    fullWindowMode: "完整窗口",
+    meterMode: "剩余刻度",
+    quotaObservationHint: "选择一种你能确认的额度变化方式。",
+    workloadObservationHint: "只记录完整且接近日常工作的任务。",
+    fullWindows: "消耗的 5h 窗口数",
+    shortBefore: "5h 开始剩余（%）",
+    shortAfter: "5h 结束剩余（%）",
+    weeklyBefore: "周额度开始剩余（%）",
+    weeklyAfter: "周额度结束剩余（%）",
+    representativeTask: "这是一个完整且能代表我日常编码工作的任务。",
+    representativeSection: "代表性工作负载",
+    modelEffort: "模型 × 档位",
+    executionMode: "执行模式",
+    actualMinutes: "任务实际活动分钟",
+    calibrationStatus: ({
+      ratio,
+      exposure,
+      status,
+      alpha,
+      beta,
+      workloadStatus,
+    }: any) =>
+      `5h ≈ ${(ratio * 100).toFixed(1)}% 周额度 · ${ZH_CALIBRATION_STATUS[status as keyof typeof ZH_CALIBRATION_STATUS] ?? status} · ${exposure.toFixed(1)} 个窗口等价样本。典型任务 α ${alpha.toFixed(2)}、β ${beta.toFixed(2)} · ${ZH_WORKLOAD_STATUS[workloadStatus as keyof typeof ZH_WORKLOAD_STATUS] ?? workloadStatus}。`,
+    noCalibration: "默认估计 · 没有个人观察数据",
   },
 });
 
@@ -302,11 +436,12 @@ export function getLocale(root = document.documentElement) {
   return root.lang.toLowerCase().startsWith("en") ? "en" : "zh";
 }
 
-export function getCopy(locale) {
-  return TRANSLATIONS[locale] || TRANSLATIONS.zh;
+export function getCopy(locale: string): Copy {
+  return (TRANSLATIONS[locale as keyof typeof TRANSLATIONS] ||
+    TRANSLATIONS.zh) as Copy;
 }
 
-export function createStrategyCatalog(copy) {
+export function createStrategyCatalog(copy: Copy) {
   return Object.freeze(
     Object.fromEntries(
       STRATEGY_KEYS.map((key) => [
@@ -320,7 +455,7 @@ export function createStrategyCatalog(copy) {
   );
 }
 
-export function createSubscriptionCatalog(copy) {
+export function createSubscriptionCatalog(copy: Copy) {
   return Object.freeze(
     Object.fromEntries(
       SUBSCRIPTION_KEYS.map((key) => [

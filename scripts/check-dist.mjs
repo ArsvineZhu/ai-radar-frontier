@@ -13,8 +13,8 @@ if (!source.startsWith("// ==UserScript==")) {
 if (!source.includes("// ==/UserScript==")) {
   throw new Error("dist is missing the closing Tampermonkey metadata marker");
 }
-if (!source.includes("// @version      1.0.2")) {
-  throw new Error("dist does not contain version 1.0.2");
+if (!source.includes("// @version      1.1.0")) {
+  throw new Error("dist does not contain version 1.1.0");
 }
 const updateUrl = source.match(/^\/\/ @updateURL\s+(.+)$/m)?.[1]?.trim();
 const downloadUrl = source.match(/^\/\/ @downloadURL\s+(.+)$/m)?.[1]?.trim();

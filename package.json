@@ -1,6 +1,6 @@
 {
   "name": "ai-radar-frontier-userscript",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "AI 雷达效率前沿 Tampermonkey userscript",
@@ -14,7 +14,7 @@
     "knip": "knip",
     "research:collect": "node scripts/collect-research-data.mjs",
     "research:analyze": "node scripts/analyze-research-data.mjs",
-    "test": "tsx --test tests/recommendation.test.ts",
+    "test": "tsx --test \"tests/*.test.ts\"",
     "lint": "oxlint --deny-warnings src scripts vite.config.ts",
     "typecheck": "tsc --noEmit",
     "dev": "vite"

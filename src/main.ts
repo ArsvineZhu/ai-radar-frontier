@@ -3,7 +3,6 @@ import {
   HOST_ID,
   IQ_MINIMUM,
   GRID_PREVIEW_CARD_LIMIT,
-  PLAN_LIMITS,
   SELECTORS,
   SOURCE_STATUS_PATTERNS,
   STRATEGY_KEYS,
@@ -23,6 +22,13 @@ import {
   syncGridViewport,
 } from "./animations.js";
 import {
+  buildCalibrationSummary,
+  createShortWindowObservation,
+  createWorkloadObservation,
+  type CalibrationStoreV1,
+} from "./calibration.js";
+import type { Copy } from "./i18n.js";
+import {
   createStrategyCatalog,
   createSubscriptionCatalog,
   getCopy,
@@ -33,7 +39,16 @@ import type { StrategyResult } from "./recommendation.js";
 import { loadRadarSnapshot } from "./radar.js";
 import type { RadarSnapshot } from "./radar.js";
 import { isValidRecord } from "./scoring.js";
-import { loadPreferences, savePreferences } from "./storage.js";
+import type { ModelRecord, ScoredRecord, SubscriptionKey } from "./scoring.js";
+import {
+  appendShortWindowObservation,
+  appendWorkloadObservation,
+  clearCalibration,
+  deleteCalibrationObservation,
+  loadCalibrationStore,
+  loadPreferences,
+  savePreferences,
+} from "./storage.js";
 import {
   createShellMarkup,
   makeElement,
@@ -44,7 +59,7 @@ import {
   styles,
 } from "./ui.js";
 
-function isSupportedPage() {
+function isSupportedPage(): boolean {
   const pageUrl = new URL(window.location.href);
   return (
     pageUrl.hostname === "codexradar.com" &&
@@ -59,26 +74,24 @@ function getElement<T extends Element = Element>(
   return state.shadow?.querySelector<T>(selector) || null;
 }
 
-function setText(state: RuntimeState, selector: string, text: string) {
+function setText(state: RuntimeState, selector: string, text: string): void {
   const element = getElement(state, selector);
-  if (element) {
-    element.textContent = text;
-  }
+  if (element) element.textContent = text;
 }
 
-function announce(state: RuntimeState, message: string) {
+function announce(state: RuntimeState, message: string): void {
   setText(state, SELECTORS.announcer, message);
 }
 
-function getStrategy(strategies, strategyKey) {
+function getStrategy(strategies: any, strategyKey: string): any {
   return strategies[strategyKey] || strategies[DEFAULT_STRATEGY];
 }
 
-function getSubscription(subscriptions, subscriptionKey) {
+function getSubscription(subscriptions: any, subscriptionKey: string): any {
   return subscriptions[subscriptionKey] || subscriptions.plus;
 }
 
-function strategyDescription(copy, strategyKey) {
+function strategyDescription(copy: Copy, strategyKey: string): string {
   return (
     copy.strategyDescriptions[strategyKey] ||
     copy.strategyDescriptions.effectiveness
@@ -91,12 +104,21 @@ interface RadarRuntimeState {
   request: Promise<void> | null;
 }
 
+interface RuntimeController {
+  getStore(): CalibrationStoreV1;
+  setStore(store: CalibrationStoreV1): void;
+  getSnapshot(): RadarSnapshot | null;
+  getResult(): StrategyResult | null;
+  setResult(result: StrategyResult): void;
+  rerender(): void;
+}
+
 function syncStrategyControl(
   state: RuntimeState,
-  copy,
-  strategies,
-  subscriptions,
-) {
+  copy: Copy,
+  strategies: any,
+  subscriptions: any,
+): void {
   const trigger = getElement<HTMLButtonElement>(state, SELECTORS.menuTrigger);
   const value = getElement<HTMLElement>(state, "[data-cr-menu-value]");
   const options =
@@ -106,44 +128,36 @@ function syncStrategyControl(
   const subscription = getSubscription(subscriptions, state.subscription);
   const multiplier = copy.subscriptionMultipliers[state.subscription] || "1×";
   const selectedLabel = `${multiplier} ${strategy.label}${state.fastEnabled ? ` ${copy.fast}` : ""}`;
-
-  if (value) {
-    value.textContent = selectedLabel;
-  }
+  if (value) value.textContent = selectedLabel;
   if (trigger instanceof HTMLButtonElement) {
     trigger.setAttribute(
       "aria-label",
       `${copy.sort}: ${subscription.label}, ${selectedLabel}`,
     );
-    const plan = PLAN_LIMITS[state.subscription] || PLAN_LIMITS.plus;
-    trigger.title =
-      state.subscription === "plus" && plan.shortWindowHours !== null
-        ? copy.shortWindowNote(plan.shortWindowHours)
-        : "";
+    trigger.title = "";
   }
   options.forEach((option) => {
-    const sortSelected = option.dataset.crSortOption === state.sortStrategy;
-    const subscriptionSelected =
+    const selected =
+      option.dataset.crSortOption === state.sortStrategy ||
       option.dataset.crSubscriptionOption === state.subscription;
-    option.setAttribute(
-      "aria-checked",
-      String(sortSelected || subscriptionSelected),
-    );
+    option.setAttribute("aria-checked", String(selected));
   });
 }
 
-function syncFastControl(state: RuntimeState, copy) {
+function syncFastControl(state: RuntimeState, copy: Copy): void {
   const toggle = getElement<HTMLInputElement>(state, SELECTORS.fastToggle);
   const label = getElement<HTMLElement>(state, SELECTORS.fastLabel);
-  if (toggle instanceof HTMLInputElement) {
-    toggle.checked = state.fastEnabled;
-  }
-  if (label instanceof HTMLElement) {
+  if (toggle) toggle.checked = state.fastEnabled;
+  if (label)
     label.textContent = state.fastEnabled ? copy.fastInclude : copy.fastExclude;
-  }
 }
 
-function syncControls(state: RuntimeState, copy, strategies, subscriptions) {
+function syncControls(
+  state: RuntimeState,
+  copy: Copy,
+  strategies: any,
+  subscriptions: any,
+): void {
   syncStrategyControl(state, copy, strategies, subscriptions);
   syncFastControl(state, copy);
 }
@@ -158,10 +172,10 @@ function persistPreferences(state: RuntimeState): void {
 
 function syncExpandControl(
   state: RuntimeState,
-  copy,
-  metrics,
-  fallenWinnerLabels,
-) {
+  copy: Copy,
+  metrics: { hasOverflow: boolean },
+  fallenLabels: string[],
+): void {
   const wrap = getElement<HTMLElement>(state, SELECTORS.expandWrap);
   const button = getElement<HTMLButtonElement>(state, SELECTORS.expand);
   const label = getElement<HTMLElement>(state, SELECTORS.expandLabel);
@@ -169,10 +183,8 @@ function syncExpandControl(
     !(wrap instanceof HTMLElement) ||
     !(button instanceof HTMLButtonElement) ||
     !(label instanceof HTMLElement)
-  ) {
+  )
     return;
-  }
-
   if (!metrics.hasOverflow) {
     state.expanded = false;
     wrap.hidden = true;
@@ -182,24 +194,92 @@ function syncExpandControl(
     label.textContent = "";
     return;
   }
-
   wrap.hidden = false;
   button.setAttribute("aria-expanded", String(state.expanded));
-  const fallenCount = state.expanded ? 0 : fallenWinnerLabels.length;
+  const fallenCount = state.expanded ? 0 : fallenLabels.length;
   button.dataset.hasFallen = String(fallenCount > 0);
-  if (fallenCount > 0) {
-    label.textContent = copy.fallenHint(fallenCount);
-    button.setAttribute("aria-label", copy.fallenHintAria(fallenCount));
-  } else {
-    label.textContent = "";
-    button.setAttribute(
-      "aria-label",
-      state.expanded ? copy.collapseAria : copy.expandAria,
+  label.textContent = fallenCount > 0 ? copy.fallenHint(fallenCount) : "";
+  button.setAttribute(
+    "aria-label",
+    fallenCount > 0
+      ? copy.fallenHintAria(fallenCount)
+      : state.expanded
+        ? copy.collapseAria
+        : copy.expandAria,
+  );
+}
+
+function updateCalibrationStatus(
+  state: RuntimeState,
+  copy: Copy,
+  controller: RuntimeController,
+): void {
+  const status = getElement<HTMLElement>(state, "[data-cr-calibration-status]");
+  if (!status) return;
+  const summary = buildCalibrationSummary(
+    controller.getStore(),
+    state.subscription as SubscriptionKey,
+  );
+  status.textContent = copy.calibrationStatus({
+    ratio: summary.shortWindow.ratio,
+    exposure: summary.shortWindow.exposure,
+    status: summary.shortWindow.status,
+    alpha: summary.workload.alpha,
+    beta: summary.workload.beta,
+    workloadStatus: summary.workload.status,
+  });
+  const observations = getElement<HTMLElement>(
+    state,
+    "[data-cr-calibration-observations]",
+  );
+  if (!observations) return;
+  observations.replaceChildren();
+  const store = controller.getStore();
+  const entries = [
+    ...store.shortWindowObservations.map((observation) => ({
+      id: observation.id,
+      text: `${observation.recordedAt} · ${observation.plan} · ${observation.method} · ${observation.status}`,
+    })),
+    ...store.workloadObservations.map((observation) => ({
+      id: observation.id,
+      text: `${observation.recordedAt} · ${observation.model} / ${observation.effort} · ${observation.mode} · ${observation.status}`,
+    })),
+  ];
+  if (entries.length === 0) {
+    observations.append(
+      makeElement("span", "cr-calibration-empty", copy.noCalibration),
     );
+    return;
+  }
+  for (const entry of entries) {
+    const row = makeElement("div", "cr-calibration-observation");
+    const label = makeElement(
+      "span",
+      "cr-calibration-observation-label",
+      entry.text,
+    );
+    const remove = makeElement(
+      "button",
+      "cr-calibration-delete",
+      copy.deleteObservation,
+    );
+    remove.type = "button";
+    remove.addEventListener("click", () => {
+      controller.setStore(deleteCalibrationObservation(entry.id));
+      updateCalibrationStatus(state, copy, controller);
+      controller.rerender();
+    });
+    row.append(label, remove);
+    observations.append(row);
   }
 }
 
-function updateDisclosure(state, copy, result, invalidCount, totalCount) {
+function updateDisclosure(
+  state: RuntimeState,
+  copy: Copy,
+  result: StrategyResult,
+  totalCount: number,
+): void {
   const disclosure = getElement<HTMLDetailsElement>(
     state,
     SELECTORS.disclosure,
@@ -208,43 +288,41 @@ function updateDisclosure(state, copy, result, invalidCount, totalCount) {
   const content = getElement<HTMLElement>(state, SELECTORS.disclosureContent);
   const notes = getElement<HTMLElement>(state, SELECTORS.disclosureNotes);
   const label = getElement<HTMLElement>(state, SELECTORS.disclosureLabel);
-  if (!disclosure || !body || !content || !notes || !label) {
-    return;
-  }
+  if (!disclosure || !body || !content || !notes || !label) return;
 
   const wasOpen = disclosure.open;
   clearDisclosureAnimation(state.animations);
   resetDisclosureStyles(disclosure, body);
   disclosure.hidden = false;
-  const { excluded } = result;
-  const excludedRecords = [
-    ...excluded.belowIqFloor,
-    ...excluded.quotaUnknown,
-    ...excluded.quotaOverLimit,
-  ];
+  const entries: Array<[ModelRecord | ScoredRecord, any]> = [];
+  for (const record of result.excluded.invalid)
+    entries.push([record, "invalid"]);
+  for (const record of result.excluded.belowIqFloor)
+    entries.push([record, "below-iq-floor"]);
+  for (const record of result.excluded.quotaUnknown)
+    entries.push([record, "quota-unknown"]);
+  for (const record of result.excluded.resourceWeekly)
+    entries.push([record, "resource-weekly"]);
+  for (const record of result.excluded.resourceShortWindow)
+    entries.push([record, "resource-short-window"]);
+  for (const record of result.excluded.fastEvidenceUnavailable)
+    entries.push([record, "fast-evidence-unavailable"]);
+  for (const record of result.excluded.practicalDominated)
+    entries.push([record, "practical-dominated"]);
   label.textContent =
-    excludedRecords.length > 0
-      ? copy.excluded(excludedRecords.length)
-      : copy.dominanceCheck;
+    entries.length > 0 ? copy.excluded(entries.length) : copy.dominanceCheck;
   content.replaceChildren();
   notes.replaceChildren();
   notes.hidden = true;
-
   notes.append(
     makeElement("p", "cr-exclusion-note", copy.qualityDataNote),
     makeElement("p", "cr-exclusion-note", copy.quotaDataNote),
+    makeElement("p", "cr-exclusion-note", copy.calibrationNote),
   );
-
-  if (excludedRecords.length > 0) {
+  if (entries.length > 0) {
     const list = makeElement("ul", "cr-exclusion-list");
-    for (const record of excludedRecords) {
-      const reason = excluded.belowIqFloor.includes(record)
-        ? "below-iq-floor"
-        : excluded.quotaUnknown.includes(record)
-          ? "quota-unknown"
-          : "quota-over-limit";
+    for (const [record, reason] of entries)
       list.append(renderExclusionItem(record, copy, reason));
-    }
     content.append(list);
   } else {
     content.append(
@@ -253,7 +331,6 @@ function updateDisclosure(state, copy, result, invalidCount, totalCount) {
       }),
     );
   }
-
   if (result.fastCandidateCount > 0 || result.fastOmittedCount > 0) {
     notes.append(
       makeElement(
@@ -265,70 +342,63 @@ function updateDisclosure(state, copy, result, invalidCount, totalCount) {
           model: result.fastModelCount,
           group: result.fastGroupCount,
           omitted: result.fastOmittedCount,
-          frontier: result.fastFrontierCount,
         }),
       ),
     );
   }
-  if (result.quotaExcluded.length > 0) {
+  if (
+    result.excluded.resourceWeekly.length +
+      result.excluded.resourceShortWindow.length >
+    0
+  ) {
     notes.append(
       makeElement(
         "p",
         "cr-exclusion-note",
-        copy.quotaGateNote({
-          overLimit: result.quotaOverLimitCount,
-          unknown: result.quotaUnknownCount,
-          limit: result.quotaLimit,
-        }),
+        copy.resourceNote(
+          result.excluded.resourceWeekly.length,
+          result.excluded.resourceShortWindow.length,
+        ),
       ),
     );
   }
-  if (excluded.belowIqFloor.length > 0) {
+  if (result.excluded.belowIqFloor.length > 0)
     notes.append(
       makeElement(
         "p",
         "cr-exclusion-note",
-        copy.lowIqNote(excluded.belowIqFloor.length),
+        copy.lowIqNote(result.excluded.belowIqFloor.length),
       ),
     );
-  }
-  if (invalidCount > 0) {
-    notes.append(
-      makeElement("p", "cr-exclusion-note", copy.invalidNote(invalidCount)),
-    );
-  }
-  if (result.diagnostics.shortWindowUnquantified) {
+  if (result.excluded.invalid.length > 0)
     notes.append(
       makeElement(
         "p",
         "cr-exclusion-note",
-        copy.shortWindowNote(result.diagnostics.shortWindowHours),
+        copy.invalidNote(result.excluded.invalid.length),
       ),
     );
-  }
-  if (result.diagnostics.paretoDominated.length > 0) {
+  if (result.excluded.practicalDominated.length > 0)
     notes.append(
       makeElement(
         "p",
         "cr-exclusion-note",
-        copy.paretoNote(result.diagnostics.paretoDominated.length),
+        copy.practicalNote(result.excluded.practicalDominated.length),
       ),
     );
-  }
-  if (totalCount > 0 && excludedRecords.length === 0 && invalidCount === 0) {
-    notes.append(makeElement("p", "cr-exclusion-note", copy.dominanceRule));
-  }
+  if (totalCount > 0 && entries.length === 0)
+    notes.append(makeElement("p", "cr-exclusion-note", copy.qualityDataNote));
   notes.hidden = notes.childElementCount === 0;
   disclosure.open = wasOpen;
 }
 
 function renderInactive(
   state: RuntimeState,
-  copy,
-  mode,
-  strategies,
-  subscriptions,
-) {
+  copy: Copy,
+  mode: string,
+  strategies: any,
+  subscriptions: any,
+): void {
   const root = getElement<HTMLElement>(state, SELECTORS.root);
   const grid = getElement<HTMLElement>(state, SELECTORS.grid);
   const shell = getElement<HTMLElement>(state, SELECTORS.gridShell);
@@ -336,15 +406,11 @@ function renderInactive(
     state,
     SELECTORS.disclosure,
   );
-  if (!root || !grid || !disclosure) {
-    return;
-  }
-
-  const modeName = copy.modeNames[mode] || copy.currentAbilityPage;
+  if (!root || !grid || !disclosure) return;
+  const modeName = copy.modeNames[mode] || mode || "the current ability page";
   root.dataset.state = "inactive";
   root.removeAttribute("aria-busy");
   resetGridViewport(state.animations, state, shell);
-  clearDisclosureAnimation(state.animations);
   disclosure.open = false;
   grid.replaceChildren(
     renderEmpty(copy.inactiveTitle, copy.inactiveDescription(modeName), copy),
@@ -357,11 +423,11 @@ function renderInactive(
 
 function renderLoading(
   state: RuntimeState,
-  copy,
-  strategies,
-  subscriptions,
+  copy: Copy,
+  strategies: any,
+  subscriptions: any,
   message = copy.loading,
-) {
+): void {
   const root = getElement<HTMLElement>(state, SELECTORS.root);
   const grid = getElement<HTMLElement>(state, SELECTORS.grid);
   const shell = getElement<HTMLElement>(state, SELECTORS.gridShell);
@@ -369,14 +435,10 @@ function renderLoading(
     state,
     SELECTORS.disclosure,
   );
-  if (!root || !grid || !disclosure) {
-    return;
-  }
-
+  if (!root || !grid || !disclosure) return;
   root.dataset.state = "loading";
   root.setAttribute("aria-busy", "true");
   resetGridViewport(state.animations, state, shell);
-  clearDisclosureAnimation(state.animations);
   disclosure.open = false;
   renderSkeleton(grid);
   disclosure.hidden = true;
@@ -387,12 +449,12 @@ function renderLoading(
 
 function renderError(
   state: RuntimeState,
-  copy,
-  strategies,
-  subscriptions,
-  message,
-  retryRadar,
-) {
+  copy: Copy,
+  strategies: any,
+  subscriptions: any,
+  message: string,
+  retryRadar: () => void,
+): void {
   const root = getElement<HTMLElement>(state, SELECTORS.root);
   const grid = getElement<HTMLElement>(state, SELECTORS.grid);
   const shell = getElement<HTMLElement>(state, SELECTORS.gridShell);
@@ -400,26 +462,16 @@ function renderError(
     state,
     SELECTORS.disclosure,
   );
-  if (!root || !grid || !disclosure) {
-    return;
-  }
-
+  if (!root || !grid || !disclosure) return;
   root.dataset.state = "error";
   root.removeAttribute("aria-busy");
   resetGridViewport(state.animations, state, shell);
-  clearDisclosureAnimation(state.animations);
   disclosure.open = false;
   grid.replaceChildren(
     renderEmpty(copy.errorTitle, message, copy, {
       retry: true,
       icon: "!",
-      onRetry: () => {
-        retryRadar?.();
-        const refresh = state.source?.querySelector(SELECTORS.refresh);
-        if (refresh instanceof HTMLElement) {
-          refresh.click();
-        }
-      },
+      onRetry: retryRadar,
     }),
   );
   disclosure.hidden = true;
@@ -428,177 +480,166 @@ function renderError(
   announce(state, message);
 }
 
-function replaceGridChildren(state: RuntimeState, grid: HTMLElement, children) {
-  clearGridAnimation(state.animations);
-  grid.replaceChildren(...children);
-}
-
 function renderData(
   state: RuntimeState,
-  copy,
-  strategies,
-  subscriptions,
+  copy: Copy,
+  strategies: any,
+  subscriptions: any,
   snapshot: RadarSnapshot,
-  openDetail,
-) {
+  calibrationStore: CalibrationStoreV1,
+  openDetail: (record: ScoredRecord) => void,
+  setCurrentResult: (result: StrategyResult) => void,
+): void {
   const root = getElement<HTMLElement>(state, SELECTORS.root);
   const grid = getElement<HTMLElement>(state, SELECTORS.grid);
   const shell = getElement<HTMLElement>(state, SELECTORS.gridShell);
-  if (!root || !grid) {
-    return;
-  }
-
-  const animateCardEntries = state.animateCardsOnNextRender;
+  if (!root || !grid) return;
+  const animateCards = state.animateCardsOnNextRender;
   state.animateCardsOnNextRender = true;
-  const records = snapshot.records;
-  const validRecords = records.filter(isValidRecord);
-  const invalidCount = records.length - validRecords.length;
+  const context = buildCalibrationSummary(
+    calibrationStore,
+    state.subscription as SubscriptionKey,
+  );
   const strategyResults: Record<string, StrategyResult> = {};
-  for (const strategyKey of STRATEGY_KEYS) {
-    strategyResults[strategyKey] = buildStrategyResult(
-      validRecords,
+  for (const key of STRATEGY_KEYS) {
+    strategyResults[key] = buildStrategyResult(
+      snapshot.records,
       snapshot.fastEstimator,
-      strategyKey,
-      state.subscription,
+      key,
+      state.subscription as SubscriptionKey,
       state.fastEnabled,
+      context,
     );
   }
-
   const strategyKey = STRATEGY_KEYS.includes(state.sortStrategy)
     ? state.sortStrategy
     : DEFAULT_STRATEGY;
   state.sortStrategy = strategyKey;
   const currentResult = strategyResults[strategyKey];
-  const orderedEligible = currentResult.orderedEligible;
-  const displayedEligible = state.expanded
-    ? orderedEligible
-    : orderedEligible.slice(0, GRID_PREVIEW_CARD_LIMIT);
-  const strategyWinners = new Map<string, string[]>();
+  setCurrentResult(currentResult);
+  const displayedGroups = state.expanded
+    ? currentResult.groups
+    : currentResult.groups.slice(0, GRID_PREVIEW_CARD_LIMIT);
+  const winners = new Map<string, string[]>();
   for (const key of STRATEGY_KEYS) {
     const winner = strategyResults[key].winner;
-    if (winner) {
-      const labels = strategyWinners.get(winner.key) || [];
-      labels.push(strategies[key].winnerLabel);
-      strategyWinners.set(winner.key, labels);
-    }
+    if (winner)
+      winners.set(winner.key, [
+        ...(winners.get(winner.key) || []),
+        strategies[key].winnerLabel,
+      ]);
   }
-
-  const strategy = strategies[strategyKey];
   const ranks = new Map(
-    orderedEligible.map((record, index) => [record.key, index + 1]),
+    currentResult.orderedScored.map((record, index) => [record.key, index + 1]),
   );
   root.dataset.state = "ready";
   root.removeAttribute("aria-busy");
   syncControls(state, copy, strategies, subscriptions);
-
-  const nextChildren = [];
-  for (const record of displayedEligible) {
-    nextChildren.push(
-      renderCard(
-        record,
-        ranks.get(record.key) || 0,
-        strategy,
-        strategyWinners.get(record.key) || [],
-        strategyDescription(copy, strategyKey),
+  const strategy = strategies[strategyKey];
+  const children: HTMLElement[] = displayedGroups.map((group) =>
+    renderCard(
+      group.representative,
+      ranks.get(group.representative.key) || 0,
+      group,
+      strategy,
+      winners.get(group.representative.key) || [],
+      strategyDescription(copy, strategyKey),
+      copy,
+      context,
+      animateCards,
+      openDetail,
+    ),
+  );
+  if (currentResult.groups.length === 0) {
+    const noModels = snapshot.records
+      .filter(isValidRecord)
+      .every((record) => record.qualityIq < IQ_MINIMUM);
+    const quotaBlocked =
+      currentResult.excluded.quotaUnknown.length > 0 ||
+      currentResult.excluded.resourceWeekly.length > 0 ||
+      currentResult.excluded.resourceShortWindow.length > 0;
+    children.push(
+      renderEmpty(
+        noModels
+          ? copy.noModelsTitle
+          : quotaBlocked
+            ? copy.noQuotaModelsTitle
+            : copy.noValidTitle,
+        noModels
+          ? copy.noModelsDescription
+          : quotaBlocked
+            ? copy.noQuotaModelsDescription
+            : copy.noValidDescription,
         copy,
-        animateCardEntries,
-        openDetail,
       ),
     );
   }
-  if (orderedEligible.length === 0) {
-    const noModels =
-      validRecords.length > 0 &&
-      validRecords.every((record) => record.qualityIq < IQ_MINIMUM);
-    const quotaBlocked =
-      !noModels &&
-      currentResult.excluded.quotaUnknown.length +
-        currentResult.excluded.quotaOverLimit.length >
-        0;
-    const emptyTitle = noModels
-      ? copy.noModelsTitle
-      : quotaBlocked
-        ? copy.noQuotaModelsTitle
-        : copy.noValidTitle;
-    const emptyDescription = noModels
-      ? copy.noModelsDescription
-      : quotaBlocked
-        ? copy.noQuotaModelsDescription
-        : copy.noValidDescription;
-    nextChildren.push(renderEmpty(emptyTitle, emptyDescription, copy));
-  }
-  replaceGridChildren(state, grid, nextChildren);
-
-  const viewportMetrics =
+  clearGridAnimation(state.animations);
+  grid.replaceChildren(...children);
+  const viewport =
     shell instanceof HTMLElement
       ? syncGridViewport(state.animations, state, grid, shell)
       : measureGridViewport(grid);
-  const fallenWinnerLabels = [];
-  for (const [winnerKey, labels] of strategyWinners) {
-    const winnerIndex = orderedEligible.findIndex(
-      (record) => record.key === winnerKey,
-    );
-    if (winnerIndex >= viewportMetrics.visibleCount) {
-      fallenWinnerLabels.push(...labels);
-    }
-  }
-  syncExpandControl(state, copy, viewportMetrics, fallenWinnerLabels);
-  updateDisclosure(state, copy, currentResult, invalidCount, records.length);
+  const hasMoreGroups = currentResult.groups.length > displayedGroups.length;
+  const fallen = currentResult.groups
+    .slice(0, displayedGroups.length)
+    .filter((group) => {
+      const index = displayedGroups.indexOf(group);
+      return (
+        index >= viewport.visibleCount && winners.has(group.representative.key)
+      );
+    })
+    .flatMap((group) => winners.get(group.representative.key) || []);
+  syncExpandControl(
+    state,
+    copy,
+    { hasOverflow: viewport.hasOverflow || hasMoreGroups },
+    fallen,
+  );
+  updateDisclosure(state, copy, currentResult, snapshot.records.length);
   announce(
     state,
     copy.announced(
-      orderedEligible.length,
+      currentResult.orderedScored.length,
       strategy.label,
       currentResult.fastCandidateCount,
+      currentResult.groups.length,
     ),
   );
 }
 
-function getTheme() {
-  const explicitTheme = document.documentElement.dataset.theme;
-  if (explicitTheme === "light") {
-    return "light";
-  }
-  if (explicitTheme === "dark") {
-    return "dark";
-  }
+function getTheme(): string {
+  const explicit = document.documentElement.dataset.theme;
+  if (explicit === "light" || explicit === "dark") return explicit;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
 }
 
-function syncTheme(state: RuntimeState) {
-  if (state.host) {
-    state.host.dataset.crTheme = getTheme();
-  }
+function syncTheme(state: RuntimeState): void {
+  if (state.host) state.host.dataset.crTheme = getTheme();
 }
 
 function render(
   state: RuntimeState,
-  copy,
-  strategies,
-  subscriptions,
-  openDetail,
-  scheduleRender,
+  copy: Copy,
+  strategies: any,
+  subscriptions: any,
+  controller: RuntimeController,
+  openDetail: (record: ScoredRecord) => void,
+  scheduleRender: () => void,
   radarState: RadarRuntimeState,
-) {
+): void {
   state.renderQueued = false;
   const source = document.querySelector<HTMLElement>(SELECTORS.source);
-  if (!source || !state.shadow) {
-    return;
-  }
+  if (!source || !state.shadow) return;
   state.hasRendered = true;
-
-  if (state.source !== source) {
-    observeSource(state, source, scheduleRender);
-  }
-
+  if (state.source !== source) observeSource(state, source, scheduleRender);
   const mode = source.dataset.efficiencyMode;
   if (mode !== TARGET_MODE) {
-    renderInactive(state, copy, mode, strategies, subscriptions);
+    renderInactive(state, copy, mode || "", strategies, subscriptions);
     return;
   }
-
   const sourceText = source.textContent || "";
   const failed = SOURCE_STATUS_PATTERNS.failed.test(sourceText);
   const loading = !failed && SOURCE_STATUS_PATTERNS.loading.test(sourceText);
@@ -626,27 +667,29 @@ function render(
     strategies,
     subscriptions,
     radarState.snapshot,
+    controller.getStore(),
     openDetail,
+    controller.setResult,
   );
 }
 
-function queueRender(state: RuntimeState, renderCallback, animateCards = true) {
-  if (!animateCards) {
-    state.animateCardsOnNextRender = false;
-  }
-  if (state.renderQueued) {
-    return;
-  }
+function queueRender(
+  state: RuntimeState,
+  callback: () => void,
+  animateCards = true,
+): void {
+  if (!animateCards) state.animateCardsOnNextRender = false;
+  if (state.renderQueued) return;
   state.renderQueued = true;
   window.clearTimeout(state.renderTimer);
-  state.renderTimer = window.setTimeout(renderCallback, 80);
+  state.renderTimer = window.setTimeout(callback, 80);
 }
 
 function observeSource(
   state: RuntimeState,
   source: HTMLElement,
-  renderCallback,
-) {
+  renderCallback: () => void,
+): void {
   state.observers.source?.disconnect();
   state.source = source;
   state.observers.source = new MutationObserver(() => renderCallback());
@@ -669,8 +712,8 @@ function observeSource(
 function observeFastSource(
   state: RuntimeState,
   source: HTMLElement,
-  renderCallback,
-) {
+  renderCallback: () => void,
+): void {
   state.observers.fast?.disconnect();
   state.fastSource = source;
   state.observers.fast = new MutationObserver(() => renderCallback());
@@ -690,15 +733,15 @@ function observeFastSource(
 
 function loadRadarData(
   radarState: RadarRuntimeState,
-  copy,
-  renderCallback,
+  copy: Copy,
+  renderCallback: () => void,
 ): void {
-  if (radarState.request) {
-    return;
-  }
-  const fastRoot = document.querySelector<HTMLElement>(SELECTORS.fastSource);
-  const quotaRoot = document.querySelector<HTMLElement>(SELECTORS.quotaSource);
-  radarState.request = loadRadarSnapshot(copy, fastRoot, quotaRoot)
+  if (radarState.request) return;
+  radarState.request = loadRadarSnapshot(
+    copy,
+    document.querySelector<HTMLElement>(SELECTORS.fastSource),
+    document.querySelector<HTMLElement>(SELECTORS.quotaSource),
+  )
     .then((snapshot) => {
       radarState.snapshot = snapshot;
       radarState.error = null;
@@ -714,7 +757,12 @@ function loadRadarData(
     });
 }
 
-function openOriginalDetail(state: RuntimeState, copy, record, renderCallback) {
+function openOriginalDetail(
+  state: RuntimeState,
+  copy: Copy,
+  record: ScoredRecord,
+  renderCallback: () => void,
+): void {
   const baseRecord = record.baseRecord || record;
   const source = document.querySelector<HTMLElement>(SELECTORS.source);
   const original = source
@@ -729,7 +777,6 @@ function openOriginalDetail(state: RuntimeState, copy, record, renderCallback) {
     renderCallback();
     return;
   }
-
   const reducedMotion = window.matchMedia?.(
     "(prefers-reduced-motion: reduce)",
   ).matches;
@@ -742,11 +789,8 @@ function openOriginalDetail(state: RuntimeState, copy, record, renderCallback) {
   original.click();
 }
 
-function releaseDetachedHost(state: RuntimeState) {
-  if (!state.host || document.contains(state.host)) {
-    return;
-  }
-
+function releaseDetachedHost(state: RuntimeState): void {
+  if (!state.host || document.contains(state.host)) return;
   clearGridAnimation(state.animations);
   clearDisclosureAnimation(state.animations);
   const pageObserver = state.observers.page;
@@ -754,7 +798,6 @@ function releaseDetachedHost(state: RuntimeState) {
   state.observers.fast?.disconnect();
   state.observers.theme?.disconnect();
   state.observers.gridResize?.disconnect();
-  state.mediaQuery?.removeEventListener?.("change", () => syncTheme(state));
   state.observers = {
     source: null,
     fast: null,
@@ -762,7 +805,6 @@ function releaseDetachedHost(state: RuntimeState) {
     theme: null,
     gridResize: null,
   };
-  state.mediaQuery = null;
   state.source = null;
   state.fastSource = null;
   state.shadow = null;
@@ -771,161 +813,350 @@ function releaseDetachedHost(state: RuntimeState) {
   state.hasRendered = false;
 }
 
+function numberField(form: HTMLFormElement, name: string): number | undefined {
+  const element = form.elements.namedItem(name);
+  if (!(element instanceof HTMLInputElement) || element.value === "")
+    return undefined;
+  const value = Number(element.value);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function setupCalibration(
+  state: RuntimeState,
+  copy: Copy,
+  controller: RuntimeController,
+): void {
+  const shadow = state.shadow;
+  if (!shadow) return;
+  const backdrop = shadow.querySelector<HTMLElement>(
+    "[data-cr-calibration-backdrop]",
+  );
+  const dialog = shadow.querySelector<HTMLDialogElement>(
+    "[data-cr-calibration-dialog]",
+  );
+  const open = () => {
+    if (!backdrop || !dialog) return;
+    backdrop.hidden = false;
+    if (typeof dialog.showModal === "function" && !dialog.open)
+      dialog.showModal();
+    else dialog.open = true;
+    updateCalibrationStatus(state, copy, controller);
+  };
+  const close = () => {
+    if (!backdrop || !dialog) return;
+    if (dialog.open && typeof dialog.close === "function") dialog.close();
+    dialog.open = false;
+    backdrop.hidden = true;
+  };
+  shadow
+    .querySelector("[data-cr-open-calibration]")
+    ?.addEventListener("click", open);
+  shadow
+    .querySelector("[data-cr-close-calibration]")
+    ?.addEventListener("click", (event) => {
+      event.preventDefault();
+      close();
+    });
+  backdrop?.addEventListener("click", (event) => {
+    if (event.target === backdrop) close();
+  });
+  dialog?.addEventListener("close", () => {
+    if (backdrop) backdrop.hidden = true;
+  });
+
+  const planSelect = shadow.querySelector<HTMLSelectElement>(
+    "[data-cr-calibration-plan]",
+  );
+  if (planSelect) planSelect.value = state.subscription;
+  let calibrationMode: "quota" | "workload" = "quota";
+  let shortMethod: "full-window" | "paired-meter" = "full-window";
+  const quotaPanel = shadow.querySelector<HTMLElement>("[data-cr-quota-panel]");
+  const workloadPanel = shadow.querySelector<HTMLElement>(
+    "[data-cr-workload-panel]",
+  );
+  const modeButtons = Array.from(
+    shadow.querySelectorAll<HTMLButtonElement>("[data-cr-calibration-mode]"),
+  );
+  const methodButtons = Array.from(
+    shadow.querySelectorAll<HTMLButtonElement>("[data-cr-window-method]"),
+  );
+  const syncCalibrationForm = () => {
+    modeButtons.forEach((button) => {
+      const selected = button.dataset.crCalibrationMode === calibrationMode;
+      button.setAttribute("aria-selected", String(selected));
+    });
+    if (quotaPanel) {
+      const active = calibrationMode === "quota";
+      quotaPanel.dataset.crActive = String(active);
+      quotaPanel.setAttribute("aria-hidden", String(!active));
+    }
+    if (workloadPanel) {
+      const active = calibrationMode === "workload";
+      workloadPanel.dataset.crActive = String(active);
+      workloadPanel.setAttribute("aria-hidden", String(!active));
+    }
+    methodButtons.forEach((button) => {
+      const selected = button.dataset.crWindowMethod === shortMethod;
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    shadow
+      .querySelectorAll<HTMLElement>("[data-cr-window-fields]")
+      .forEach((field) => {
+        const active = field.dataset.crWindowFields === shortMethod;
+        field.dataset.crActive = String(active);
+        field.setAttribute("aria-hidden", String(!active));
+        field.querySelectorAll<HTMLInputElement>("input").forEach((input) => {
+          input.required = active;
+        });
+      });
+  };
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      calibrationMode =
+        button.dataset.crCalibrationMode === "workload" ? "workload" : "quota";
+      syncCalibrationForm();
+    });
+  });
+  methodButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      shortMethod =
+        button.dataset.crWindowMethod === "paired-meter"
+          ? "paired-meter"
+          : "full-window";
+      syncCalibrationForm();
+    });
+  });
+  syncCalibrationForm();
+  shadow
+    .querySelector<HTMLFormElement>("[data-cr-short-form]")
+    ?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = event.currentTarget as HTMLFormElement;
+      const plan = (planSelect?.value || state.subscription) as SubscriptionKey;
+      const before = numberField(form, "weeklyBefore");
+      const after = numberField(form, "weeklyAfter");
+      if (before === undefined || after === undefined) return;
+      const observation =
+        shortMethod === "full-window"
+          ? (() => {
+              const windows = numberField(form, "fullWindows");
+              return windows === undefined
+                ? null
+                : createShortWindowObservation({
+                    plan,
+                    method: "full-window",
+                    fullWindows: windows,
+                    weeklyBefore: before / 100,
+                    weeklyAfter: after / 100,
+                  });
+            })()
+          : (() => {
+              const shortBefore = numberField(form, "shortBefore");
+              const shortAfter = numberField(form, "shortAfter");
+              return shortBefore === undefined || shortAfter === undefined
+                ? null
+                : createShortWindowObservation({
+                    plan,
+                    method: "paired-meter",
+                    shortBefore: shortBefore / 100,
+                    shortAfter: shortAfter / 100,
+                    weeklyBefore: before / 100,
+                    weeklyAfter: after / 100,
+                  });
+            })();
+      if (!observation) return;
+      controller.setStore(appendShortWindowObservation(observation));
+      form.reset();
+      updateCalibrationStatus(state, copy, controller);
+      controller.rerender();
+    });
+  shadow
+    .querySelector<HTMLFormElement>("[data-cr-workload-form]")
+    ?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = event.currentTarget as HTMLFormElement;
+      const snapshot = controller.getSnapshot();
+      if (!snapshot) return;
+      const plan = (planSelect?.value || state.subscription) as SubscriptionKey;
+      const modelEffort =
+        (form.elements.namedItem("modelEffort") as HTMLInputElement)?.value
+          .trim()
+          .split(/[\s/]+/)
+          .filter(Boolean) || [];
+      const model = modelEffort[0] || "";
+      const effort = modelEffort[1] || "";
+      const mode = ((form.elements.namedItem("mode") as HTMLSelectElement)
+        ?.value || "standard") as "standard" | "fast";
+      const actualMinutes = numberField(form, "actualMinutes");
+      const representative = form.elements.namedItem(
+        "representativeTask",
+      ) as HTMLInputElement | null;
+      if (
+        !model ||
+        !effort ||
+        actualMinutes === undefined ||
+        !representative?.checked
+      )
+        return;
+      const result = controller.getResult();
+      const record =
+        result?.orderedScored.find(
+          (candidate) =>
+            candidate.model === model &&
+            candidate.effort === effort &&
+            candidate.mode === mode,
+        ) ||
+        snapshot.records.find(
+          (candidate) =>
+            candidate.model === model && candidate.effort === effort,
+        );
+      if (!record) return;
+      const weeklyBefore = numberField(form, "weeklyBefore");
+      const weeklyAfter = numberField(form, "weeklyAfter");
+      const shortBefore = numberField(form, "shortBefore");
+      const shortAfter = numberField(form, "shortAfter");
+      const kappa = buildCalibrationSummary(controller.getStore(), plan)
+        .shortWindow.ratio;
+      const workload = createWorkloadObservation(
+        {
+          plan,
+          model: record.model,
+          family: record.family,
+          effort: record.effort,
+          mode: record.mode,
+          benchmarkCostEquivalent: record.benchmarkCostEquivalent,
+          benchmarkMinutes: record.benchmarkMinutes,
+          quotaBudget20x: record.quotaBudget20x || 0,
+          actualMinutes,
+          weeklyBefore:
+            weeklyBefore === undefined ? undefined : weeklyBefore / 100,
+          weeklyAfter:
+            weeklyAfter === undefined ? undefined : weeklyAfter / 100,
+          shortBefore:
+            shortBefore === undefined ? undefined : shortBefore / 100,
+          shortAfter: shortAfter === undefined ? undefined : shortAfter / 100,
+          representativeTask: true,
+        },
+        kappa,
+      );
+      controller.setStore(appendWorkloadObservation(workload));
+      form.reset();
+      updateCalibrationStatus(state, copy, controller);
+      controller.rerender();
+    });
+  shadow
+    .querySelector("[data-cr-reset-calibration]")
+    ?.addEventListener("click", () => {
+      if (!window.confirm("Reset local calibration?")) return;
+      controller.setStore(clearCalibration());
+      updateCalibrationStatus(state, copy, controller);
+      controller.rerender();
+    });
+}
+
 function mount(
   state: RuntimeState,
-  copy,
-  strategies,
-  subscriptions,
+  copy: Copy,
+  strategies: any,
+  subscriptions: any,
+  controller: RuntimeController,
   radarState: RadarRuntimeState,
-  renderCallback,
-  renderFastCallback,
-) {
+  renderCallback: () => void,
+  renderFastCallback: () => void,
+): boolean {
   releaseDetachedHost(state);
-  if (state.host || document.getElementById(HOST_ID)) {
-    return true;
-  }
-
+  if (state.host || document.getElementById(HOST_ID)) return true;
   const header =
-    document.querySelector(".shell > header") ||
-    document.querySelector("header");
-  if (!(header instanceof HTMLElement)) {
-    return false;
-  }
-
+    document.querySelector<HTMLElement>(".shell > header") ||
+    document.querySelector<HTMLElement>("header");
+  if (!(header instanceof HTMLElement)) return false;
   const host = document.createElement("section");
   host.id = HOST_ID;
   host.className = "ai-radar-frontier-host";
   host.dataset.crVersion = VERSION;
   host.setAttribute("aria-label", copy.title);
   header.insertAdjacentElement("afterend", host);
-
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `<style>${styles}</style>${createShellMarkup(copy, strategies, subscriptions, state)}`;
   state.host = host;
   state.shadow = shadow;
   syncTheme(state);
-
   const grid = shadow.querySelector<HTMLElement>(SELECTORS.grid);
-  if (grid instanceof HTMLElement && typeof ResizeObserver === "function") {
+  if (grid && typeof ResizeObserver === "function") {
     state.observers.gridResize = new ResizeObserver(([entry]) => {
       const width = Math.round(entry.contentRect.width * 100) / 100;
-      if (width === state.gridWidth) {
-        return;
-      }
+      if (width === state.gridWidth) return;
       state.gridWidth = width;
-      if (state.hasRendered) {
-        renderCallback(false);
-      }
+      if (state.hasRendered) renderCallback();
     });
     state.observers.gridResize.observe(grid);
   }
-
   const menu = shadow.querySelector<HTMLElement>(SELECTORS.menu);
-  const menuTrigger = shadow.querySelector<HTMLButtonElement>(
+  const trigger = shadow.querySelector<HTMLButtonElement>(
     SELECTORS.menuTrigger,
   );
-  const menuContent = shadow.querySelector<HTMLElement>(SELECTORS.menuContent);
-  const menuOptions = Array.from(
+  const content = shadow.querySelector<HTMLElement>(SELECTORS.menuContent);
+  const options = Array.from(
     shadow.querySelectorAll<HTMLButtonElement>(SELECTORS.menuOption),
   );
-  const setMenuOpen = (open, focusSelected = false) => {
-    if (
-      !(menuTrigger instanceof HTMLButtonElement) ||
-      !(menuContent instanceof HTMLElement)
-    ) {
-      return;
-    }
+  const setMenuOpen = (open: boolean, focusSelected = false) => {
+    if (!trigger || !content) return;
     state.menuOpen = open;
-    menuContent.dataset.open = String(open);
-    menuContent.setAttribute("aria-hidden", String(!open));
-    menuTrigger.setAttribute("aria-expanded", String(open));
-    if (open && focusSelected) {
-      const selected = menuOptions.find(
-        (option) => option.getAttribute("aria-checked") === "true",
-      );
-      (selected || menuOptions[0])?.focus();
-    }
-  };
-  if (
-    menu instanceof HTMLElement &&
-    menuTrigger instanceof HTMLButtonElement &&
-    menuContent instanceof HTMLElement
-  ) {
-    menuTrigger.addEventListener("click", (event) => {
-      setMenuOpen(!state.menuOpen, event.detail === 0 && !state.menuOpen);
-    });
-    menuTrigger.addEventListener("keydown", (event) => {
-      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
-        return;
-      }
-      event.preventDefault();
-      setMenuOpen(true, true);
-      if (event.key === "ArrowUp") {
-        const selectedIndex = menuOptions.findIndex(
+    content.dataset.open = String(open);
+    content.setAttribute("aria-hidden", String(!open));
+    trigger.setAttribute("aria-expanded", String(open));
+    if (open && focusSelected)
+      (
+        options.find(
           (option) => option.getAttribute("aria-checked") === "true",
-        );
-        (
-          menuOptions[
-            selectedIndex > 0 ? selectedIndex - 1 : menuOptions.length - 1
-          ] || menuOptions[0]
-        )?.focus();
-      }
-    });
-    menuOptions.forEach((option, index) => {
-      option.addEventListener("click", () => {
-        const selectedStrategy = option.dataset.crSortOption;
-        const selectedSubscription = option.dataset.crSubscriptionOption;
-        if (STRATEGY_KEYS.includes(selectedStrategy)) {
-          state.sortStrategy = selectedStrategy;
-        }
-        if (SUBSCRIPTION_KEYS.includes(selectedSubscription)) {
-          state.subscription = selectedSubscription;
-        }
-        persistPreferences(state);
-        setMenuOpen(false);
-        menuTrigger.focus();
-        renderCallback();
-      });
-      option.addEventListener("keydown", (event) => {
-        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-          event.preventDefault();
-          const delta = event.key === "ArrowDown" ? 1 : -1;
-          menuOptions[
-            (index + delta + menuOptions.length) % menuOptions.length
-          ]?.focus();
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          setMenuOpen(false);
-          menuTrigger.focus();
-        }
-      });
-    });
-    shadow.addEventListener("click", (event) => {
-      if (!(event.target instanceof Node) || !menu.contains(event.target)) {
-        setMenuOpen(false);
-      }
-    });
-  }
-
-  const fastToggle = shadow.querySelector(SELECTORS.fastToggle);
-  if (fastToggle instanceof HTMLInputElement) {
-    fastToggle.checked = state.fastEnabled;
-    fastToggle.addEventListener("change", () => {
-      state.fastEnabled = fastToggle.checked;
+        ) || options[0]
+      )?.focus();
+  };
+  trigger?.addEventListener("click", (event) =>
+    setMenuOpen(!state.menuOpen, event.detail === 0 && !state.menuOpen),
+  );
+  trigger?.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    setMenuOpen(true, true);
+  });
+  options.forEach((option) =>
+    option.addEventListener("click", () => {
+      if (
+        option.dataset.crSortOption &&
+        STRATEGY_KEYS.includes(option.dataset.crSortOption)
+      )
+        state.sortStrategy = option.dataset.crSortOption;
+      if (
+        option.dataset.crSubscriptionOption &&
+        SUBSCRIPTION_KEYS.includes(option.dataset.crSubscriptionOption)
+      )
+        state.subscription = option.dataset.crSubscriptionOption;
       persistPreferences(state);
+      setMenuOpen(false);
+      trigger?.focus();
       renderCallback();
-    });
-  }
-
-  const expandButton = shadow.querySelector(SELECTORS.expand);
-  if (expandButton instanceof HTMLButtonElement) {
-    expandButton.addEventListener("click", () => {
+    }),
+  );
+  shadow.addEventListener("click", (event) => {
+    if (!(event.target instanceof Node) || !menu?.contains(event.target))
+      setMenuOpen(false);
+  });
+  const fastToggle = shadow.querySelector<HTMLInputElement>(
+    SELECTORS.fastToggle,
+  );
+  fastToggle?.addEventListener("change", () => {
+    state.fastEnabled = fastToggle.checked;
+    persistPreferences(state);
+    renderCallback();
+  });
+  shadow
+    .querySelector<HTMLButtonElement>(SELECTORS.expand)
+    ?.addEventListener("click", () => {
       state.animateCardsOnNextRender = false;
       state.expanded = !state.expanded;
       renderCallback();
     });
-  }
-
   const disclosure = shadow.querySelector<HTMLDetailsElement>(
     SELECTORS.disclosure,
   );
@@ -933,96 +1164,56 @@ function mount(
   const disclosureBody = shadow.querySelector<HTMLElement>(
     SELECTORS.disclosureBody,
   );
-  if (
-    disclosure instanceof HTMLDetailsElement &&
-    disclosureSummary instanceof HTMLElement &&
-    disclosureBody instanceof HTMLElement
-  ) {
+  if (disclosure && disclosureSummary instanceof HTMLElement && disclosureBody)
     disclosureSummary.addEventListener("click", (event) => {
       event.preventDefault();
       animateDisclosureToggle(state.animations, disclosure, disclosureBody);
     });
-  }
-
-  const infoButton = shadow.querySelector(SELECTORS.info);
-  const infoWrap = shadow.querySelector(SELECTORS.infoWrap);
-  const infoTooltip = shadow.querySelector(SELECTORS.infoTooltip);
-  const infoPanel = shadow.querySelector(SELECTORS.panel);
+  const infoButton = shadow.querySelector<HTMLButtonElement>(SELECTORS.info);
+  const infoWrap = shadow.querySelector<HTMLElement>(SELECTORS.infoWrap);
+  const infoTooltip = shadow.querySelector<HTMLElement>(SELECTORS.infoTooltip);
+  const infoPanel = shadow.querySelector<HTMLElement>(SELECTORS.panel);
   const positionInfoTooltip = () => {
-    if (
-      !(infoWrap instanceof HTMLElement) ||
-      !(infoTooltip instanceof HTMLElement) ||
-      !(infoPanel instanceof HTMLElement)
-    ) {
-      return;
-    }
+    if (!infoWrap || !infoTooltip || !infoPanel) return;
     const wrapRect = infoWrap.getBoundingClientRect();
     const tooltipRect = infoTooltip.getBoundingClientRect();
     const panelRect = infoPanel.getBoundingClientRect();
-    const padding = 12;
-    const preferredLeft = wrapRect.right - tooltipRect.width;
-    const minimumLeft = panelRect.left + padding;
-    const maximumLeft = Math.max(
-      minimumLeft,
-      panelRect.right - tooltipRect.width - padding,
+    const left = Math.min(
+      Math.max(wrapRect.right - tooltipRect.width, panelRect.left + 12),
+      Math.max(panelRect.left + 12, panelRect.right - tooltipRect.width - 12),
     );
-    const clampedLeft = Math.min(
-      Math.max(preferredLeft, minimumLeft),
-      maximumLeft,
-    );
-    infoTooltip.style.left = `${clampedLeft - wrapRect.left}px`;
+    infoTooltip.style.left = `${left - wrapRect.left}px`;
     infoTooltip.style.right = "auto";
   };
-  const closeInfo = () => {
-    if (
-      infoWrap instanceof HTMLElement &&
-      infoButton instanceof HTMLButtonElement
-    ) {
-      infoWrap.dataset.open = "false";
-      infoButton.setAttribute("aria-expanded", "false");
-    }
-  };
-  if (
-    infoButton instanceof HTMLButtonElement &&
-    infoWrap instanceof HTMLElement
-  ) {
-    infoButton.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const open = infoWrap.dataset.open !== "true";
-      infoWrap.dataset.open = String(open);
-      infoButton.setAttribute("aria-expanded", String(open));
-      positionInfoTooltip();
-    });
-    infoButton.addEventListener("mouseenter", positionInfoTooltip);
-    infoButton.addEventListener("focus", positionInfoTooltip);
-    infoButton.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        closeInfo();
-        infoButton.blur();
-      }
-    });
-    shadow.addEventListener("click", (event) => {
-      if (!(event.target instanceof Node) || !infoWrap.contains(event.target)) {
-        closeInfo();
-      }
-    });
-    window.addEventListener("resize", positionInfoTooltip, { passive: true });
+  infoButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = infoWrap?.dataset.open !== "true";
+    if (infoWrap) infoWrap.dataset.open = String(open);
+    infoButton.setAttribute("aria-expanded", String(open));
     positionInfoTooltip();
-  }
-  window.addEventListener("resize", () => renderCallback(false), {
-    passive: true,
   });
-
+  infoButton?.addEventListener("mouseenter", positionInfoTooltip);
+  infoButton?.addEventListener("focus", positionInfoTooltip);
+  shadow.addEventListener("click", (event) => {
+    if (!(event.target instanceof Node) || !infoWrap?.contains(event.target)) {
+      if (infoWrap) infoWrap.dataset.open = "false";
+      infoButton?.setAttribute("aria-expanded", "false");
+    }
+  });
+  window.addEventListener(
+    "resize",
+    () => {
+      positionInfoTooltip();
+      renderCallback();
+    },
+    { passive: true },
+  );
+  setupCalibration(state, copy, controller);
   const source = document.querySelector<HTMLElement>(SELECTORS.source);
-  if (source) {
-    observeSource(state, source, renderCallback);
-  }
+  if (source) observeSource(state, source, renderCallback);
   const fastSource = document.querySelector<HTMLElement>(SELECTORS.fastSource);
-  if (fastSource) {
-    observeFastSource(state, fastSource, renderFastCallback);
-  }
+  if (fastSource) observeFastSource(state, fastSource, renderFastCallback);
   loadRadarData(radarState, copy, renderCallback);
-
   state.observers.theme = new MutationObserver(() => syncTheme(state));
   state.observers.theme.observe(document.documentElement, {
     attributes: true,
@@ -1036,19 +1227,13 @@ function mount(
 
 function observePage(
   state: RuntimeState,
-  mountCallback,
-  renderCallback,
-  renderFastCallback,
-) {
-  if (state.observers.page) {
-    return;
-  }
+  mountCallback: () => boolean,
+  renderCallback: () => void,
+  renderFastCallback: () => void,
+): void {
+  if (state.observers.page) return;
   state.observers.page = new MutationObserver(() => {
-    if (!state.host || !document.contains(state.host)) {
-      if (!mountCallback()) {
-        return;
-      }
-    }
+    if (!state.host || !document.contains(state.host)) mountCallback();
     const source = document.querySelector<HTMLElement>(SELECTORS.source);
     if (source && state.source !== source) {
       observeSource(state, source, renderCallback);
@@ -1068,22 +1253,16 @@ function observePage(
   });
 }
 
-function start() {
-  if (!isSupportedPage() || document.getElementById(HOST_ID)) {
-    return;
-  }
-
+function start(): void {
+  if (!isSupportedPage() || document.getElementById(HOST_ID)) return;
   const state = createState();
   const preferences = loadPreferences();
-  if (preferences.subscription) {
-    state.subscription = preferences.subscription;
-  }
-  if (preferences.sortStrategy) {
-    state.sortStrategy = preferences.sortStrategy;
-  }
-  if (preferences.fastEnabled !== undefined) {
+  if (preferences.subscription) state.subscription = preferences.subscription;
+  if (preferences.sortStrategy) state.sortStrategy = preferences.sortStrategy;
+  if (preferences.fastEnabled !== undefined)
     state.fastEnabled = preferences.fastEnabled;
-  }
+  let calibrationStore = loadCalibrationStore();
+  let latestResult: StrategyResult | null = null;
   const radarState: RadarRuntimeState = {
     snapshot: null,
     error: null,
@@ -1092,41 +1271,48 @@ function start() {
   const copy = getCopy(getLocale());
   const strategies = createStrategyCatalog(copy);
   const subscriptions = createSubscriptionCatalog(copy);
-  const renderCallback = (animateCards = true) =>
-    queueRender(
-      state,
-      () =>
-        render(
-          state,
-          copy,
-          strategies,
-          subscriptions,
-          openOriginalDetailCallback,
-          renderCallback,
-          radarState,
-        ),
-      animateCards,
+  let renderCallback: () => void;
+  const controller: RuntimeController = {
+    getStore: () => calibrationStore,
+    setStore: (store) => {
+      calibrationStore = store;
+    },
+    getSnapshot: () => radarState.snapshot,
+    getResult: () => latestResult,
+    setResult: (result) => {
+      latestResult = result;
+    },
+    rerender: () => renderCallback(),
+  };
+  renderCallback = () =>
+    queueRender(state, () =>
+      render(
+        state,
+        copy,
+        strategies,
+        subscriptions,
+        controller,
+        (record) => openOriginalDetail(state, copy, record, renderCallback),
+        renderCallback,
+        radarState,
+      ),
     );
   const renderFastCallback = () => renderCallback();
-  const openOriginalDetailCallback = (record) =>
-    openOriginalDetail(state, copy, record, renderCallback);
   const mountCallback = () =>
     mount(
       state,
       copy,
       strategies,
       subscriptions,
+      controller,
       radarState,
       renderCallback,
       renderFastCallback,
     );
-
   mountCallback();
   observePage(state, mountCallback, renderCallback, renderFastCallback);
 }
 
-if (document.readyState === "loading") {
+if (document.readyState === "loading")
   document.addEventListener("DOMContentLoaded", start, { once: true });
-} else {
-  start();
-}
+else start();
