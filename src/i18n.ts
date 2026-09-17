@@ -156,6 +156,8 @@ const TRANSLATIONS = freezeRecord({
       "Calibrated typical-task share reaches the active short-window capacity.",
     practicalReason:
       "A higher-ranked choice is within the decision tolerances and materially lighter or faster.",
+    dominatedBy: (name: string) => `Dominated by ${name}`,
+    switchTo: "Open this alternative",
     fastReason:
       "Fast evidence was not sufficient to create a separate candidate.",
     alternativesTitle: (count: number) =>
@@ -347,6 +349,8 @@ const TRANSLATIONS = freezeRecord({
     weeklyResourceReason: "已校准的典型任务周额度占比达到周容量。",
     shortResourceReason: "已校准的典型任务周额度占比达到当前短窗口容量。",
     practicalReason: "更高排序的选择在决策容差内，同时有明显更轻或更快的优势。",
+    dominatedBy: (name: string) => `被 ${name} 覆盖`,
+    switchTo: "打开这个替代项",
     fastReason: "Fast 证据不足，未生成独立候选。",
     alternativesTitle: (count: number) =>
       `${count} 个相近替代项；打开说明比较真实差异`,

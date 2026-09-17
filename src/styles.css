@@ -858,6 +858,94 @@
   white-space: nowrap;
 }
 
+.cr-card-group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cr-alternatives-toggle {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px dashed var(--cr-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cr-muted-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.cr-alternatives-toggle:hover,
+.cr-alternatives-toggle[aria-expanded="true"] {
+  border-color: var(--cr-accent-border);
+  background: var(--cr-accent-soft);
+  color: var(--cr-foreground);
+}
+
+.cr-alternatives-toggle:focus-visible {
+  outline: 2px solid var(--cr-accent);
+  outline-offset: 2px;
+}
+
+.cr-alternatives-panel {
+  display: grid;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-card);
+  background: var(--cr-background-subtle);
+}
+
+.cr-alternative {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--cr-foreground);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.cr-alternative:hover,
+.cr-alternative:focus-visible {
+  border-color: var(--cr-border);
+  background: var(--cr-accent-soft);
+}
+
+.cr-alternative:focus-visible {
+  outline: 2px solid var(--cr-accent);
+  outline-offset: 1px;
+}
+
+.cr-alternative-name {
+  color: var(--cr-foreground);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cr-alternative-delta {
+  color: var(--cr-muted);
+  font-family:
+    "Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .cr-badge {
   display: inline-flex;
   align-items: center;
@@ -1099,6 +1187,22 @@
   color: var(--cr-muted-strong);
   font-size: 11px;
   text-align: right;
+  white-space: nowrap;
+}
+
+.cr-exclusion-witness-deltas {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  text-align: right;
+}
+
+.cr-exclusion-delta {
+  color: var(--cr-muted);
+  font-family:
+    "Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -1743,8 +1847,13 @@
     gap: 5px;
   }
 
-  .cr-exclusion-witness {
+  .cr-exclusion-witness,
+  .cr-exclusion-witness-deltas {
     text-align: left;
+  }
+
+  .cr-exclusion-witness-deltas {
+    justify-items: start;
   }
 
   .cr-calibration-dialog {

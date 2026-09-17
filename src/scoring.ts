@@ -1,7 +1,7 @@
 import {
   ENDURANCE_EQUIV_REL,
   ENDURANCE_UTILITY_REFERENCE_MINUTES,
-  DEFAULT_WORKLOAD_ALPHA,
+  WORKLOAD_ALPHA_PRIOR,
   IQ_MINIMUM,
   IQ_EQUIV,
   IQ_REFERENCE,
@@ -133,7 +133,7 @@ export function createDefaultCalibrationContext(
       status: "baseline",
     },
     workload: {
-      alpha: DEFAULT_WORKLOAD_ALPHA,
+      alpha: WORKLOAD_ALPHA_PRIOR,
       beta: 1,
       quotaConfidence: 0,
       timeConfidence: 0,
@@ -184,23 +184,24 @@ function qualityUtility(iq: number): number {
 }
 
 function timeUtility(minutes: number): number {
-  return -Math.log2(minutes / TIME_UTILITY_REFERENCE_MINUTES);
+  return -Math.log2(1 + minutes / TIME_UTILITY_REFERENCE_MINUTES);
 }
 
 function weeklyUtility(share: number | null): number {
-  return share === null || share <= 0
+  return share === null || share < 0
     ? Number.NEGATIVE_INFINITY
-    : -Math.log2(share / WEEKLY_UTILITY_REFERENCE_SHARE);
+    : -Math.log2(1 + share / WEEKLY_UTILITY_REFERENCE_SHARE);
 }
 
 function enduranceUtility(
   endurance: number | null,
   windowMinutes: number,
 ): number | null {
-  if (endurance === null || endurance <= 0) return null;
-  return Math.log2(
-    Math.min(endurance, windowMinutes) / ENDURANCE_UTILITY_REFERENCE_MINUTES,
-  );
+  if (endurance === null || endurance < 0) return null;
+
+  const capped = Math.min(endurance, windowMinutes);
+
+  return Math.log2(1 + capped / ENDURANCE_UTILITY_REFERENCE_MINUTES);
 }
 
 export function evaluateRecords(

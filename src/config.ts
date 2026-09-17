@@ -1,4 +1,4 @@
-export const VERSION = "1.1.0";
+export const VERSION = "1.1.1";
 export const HOST_ID = "ai-radar-frontier-userscript";
 
 export const SELECTORS = Object.freeze({
@@ -47,7 +47,7 @@ const DEFAULT_FAST_ENABLED = true;
 export const IQ_MINIMUM = 70;
 export const IQ_REFERENCE = 100;
 export const IQ_RESOLUTION = 4;
-export const DEFAULT_WORKLOAD_ALPHA = 5;
+export const WORKLOAD_ALPHA_PRIOR = 5;
 export const FAST_COST_MULTIPLIER = 2.5;
 export const FAST_MODEL_ID = "gpt-6-astra";
 export const PLAN_LIMITS = Object.freeze({

@@ -1,6 +1,6 @@
 # AI 雷达 · 效率前沿
 
-这是一个只读的 Tampermonkey TypeScript 用户脚本（版本 1.1.0）。它在 codexradar.com 的 DeepSWE 软件工程能力页顶部增加效率前沿推荐区，不改写原站模型卡片、图表、推荐区或社区评分。点击推荐卡片会滚动到对应的原站卡片并调用原站详情。
+这是一个只读的 Tampermonkey TypeScript 用户脚本（版本 1.1.1）。它在 codexradar.com 的 DeepSWE 软件工程能力页顶部增加效率前沿推荐区，不改写原站模型卡片、图表、推荐区或社区评分。点击推荐卡片会滚动到对应的原站卡片并调用原站详情。
 
 运行时只读取公开的当前 Radar 数据：DeepSWE 效能接口、页面中的模型族额度雷达，以及公开 Fast E2E 数据。请求范围限定在 codexradar.com、deng.codexradar.com 和 api.codexradar.com。Research 快照不作为运行时依赖，脚本也不会运行模型、benchmark 或上传本地数据。
 
@@ -53,7 +53,7 @@ beta  = actual active minutes / benchmark minutes
 
 有效观察使用对数空间几何中位数。alpha 按额度暴露向默认值 5 收缩，beta 按样本数向 1 收缩。模型、档位、模式和当时的基准值会随观察保存；不满足输入范围的观察保留为 rejected，不参加估计。
 
-默认工作负载比例为 `alpha = 5`。它来自约 `5.55` 个 DeepSWE 等价负担的观测，并取整为产品默认值；因此默认 5h 耐力相对于未缩放值除以约 `5`。用户提交代表性任务后，alpha 会以额度暴露置信度向个人观察值收缩。
+默认工作负载先验 `alpha = 5`，对应系统默认的典型任务周负担；无个人观察数据时使用该先验估计，DeepSWE 原始额度仅作为底层标定量。因此默认 5h 耐力相对于未缩放值除以约 `5`。用户提交代表性任务后，alpha 会以额度暴露置信度向个人观察值收缩。
 
 ### 运行时派生指标
 

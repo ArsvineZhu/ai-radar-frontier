@@ -117,7 +117,7 @@ test("workload aggregation uses geometric medians and confidence shrinkage", () 
   assert.ok(Math.abs(summary.alpha - 10) < 1e-12);
 });
 
-test("no valid workload observation returns neutral calibration", () => {
+test("no valid workload observation returns the product workload prior", () => {
   const summary = estimateWorkload([workload({ actualMinutes: 0 })]);
   assert.equal(summary.alpha, 5);
   assert.equal(summary.beta, 1);

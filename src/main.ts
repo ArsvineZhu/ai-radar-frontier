@@ -213,13 +213,12 @@ function updateCalibrationStatus(
   state: RuntimeState,
   copy: Copy,
   controller: RuntimeController,
+  plan?: SubscriptionKey,
 ): void {
   const status = getElement<HTMLElement>(state, "[data-cr-calibration-status]");
   if (!status) return;
-  const summary = buildCalibrationSummary(
-    controller.getStore(),
-    state.subscription as SubscriptionKey,
-  );
+  const selectedPlan = plan ?? (state.subscription as SubscriptionKey);
+  const summary = buildCalibrationSummary(controller.getStore(), selectedPlan);
   status.textContent = copy.calibrationStatus({
     ratio: summary.shortWindow.ratio,
     exposure: summary.shortWindow.exposure,
@@ -266,7 +265,10 @@ function updateCalibrationStatus(
     remove.type = "button";
     remove.addEventListener("click", () => {
       controller.setStore(deleteCalibrationObservation(entry.id));
-      updateCalibrationStatus(state, copy, controller);
+      const dialogPlan = state.shadow?.querySelector<HTMLSelectElement>(
+        "[data-cr-calibration-plan]",
+      )?.value as SubscriptionKey | undefined;
+      updateCalibrationStatus(state, copy, controller, dialogPlan);
       controller.rerender();
     });
     row.append(label, remove);
@@ -529,8 +531,11 @@ function renderData(
         strategies[key].winnerLabel,
       ]);
   }
-  const ranks = new Map(
-    currentResult.orderedScored.map((record, index) => [record.key, index + 1]),
+  const groupRanks = new Map(
+    currentResult.groups.map((group, index) => [
+      group.representative.key,
+      index + 1,
+    ]),
   );
   root.dataset.state = "ready";
   root.removeAttribute("aria-busy");
@@ -539,7 +544,7 @@ function renderData(
   const children: HTMLElement[] = displayedGroups.map((group) =>
     renderCard(
       group.representative,
-      ranks.get(group.representative.key) || 0,
+      groupRanks.get(group.representative.key) || 0,
       group,
       strategy,
       winners.get(group.representative.key) || [],
@@ -840,7 +845,8 @@ function setupCalibration(
     if (typeof dialog.showModal === "function" && !dialog.open)
       dialog.showModal();
     else dialog.open = true;
-    updateCalibrationStatus(state, copy, controller);
+    syncCandidateOptions();
+    updateCalibrationStatus(state, copy, controller, calibrationPlan());
   };
   const close = () => {
     if (!backdrop || !dialog) return;
@@ -868,6 +874,33 @@ function setupCalibration(
     "[data-cr-calibration-plan]",
   );
   if (planSelect) planSelect.value = state.subscription;
+  const calibrationPlan = (): SubscriptionKey =>
+    (planSelect?.value || state.subscription) as SubscriptionKey;
+  planSelect?.addEventListener("change", () => {
+    updateCalibrationStatus(state, copy, controller, calibrationPlan());
+  });
+  const candidateSelect = shadow.querySelector<HTMLSelectElement>(
+    "[data-cr-workload-candidate]",
+  );
+  const syncCandidateOptions = (): void => {
+    if (!candidateSelect) return;
+    const result = controller.getResult();
+    const snapshot = controller.getSnapshot();
+    const map = new Map<string, ModelRecord | ScoredRecord>();
+    for (const record of snapshot?.records ?? []) map.set(record.key, record);
+    for (const record of result?.orderedScored ?? [])
+      map.set(record.key, record);
+    candidateSelect.replaceChildren(
+      ...Array.from(map.values()).map((candidate) => {
+        const option = document.createElement("option");
+        option.value = candidate.key;
+        option.textContent =
+          candidate.label +
+          (candidate.mode === "fast" ? ` · ${copy.fast}` : "");
+        return option;
+      }),
+    );
+  };
   let calibrationMode: "quota" | "workload" = "quota";
   let shortMethod: "full-window" | "paired-meter" = "full-window";
   const quotaPanel = shadow.querySelector<HTMLElement>("[data-cr-quota-panel]");
@@ -967,7 +1000,7 @@ function setupCalibration(
       if (!observation) return;
       controller.setStore(appendShortWindowObservation(observation));
       form.reset();
-      updateCalibrationStatus(state, copy, controller);
+      updateCalibrationStatus(state, copy, controller, calibrationPlan());
       controller.rerender();
     });
   shadow
@@ -977,23 +1010,16 @@ function setupCalibration(
       const form = event.currentTarget as HTMLFormElement;
       const snapshot = controller.getSnapshot();
       if (!snapshot) return;
-      const plan = (planSelect?.value || state.subscription) as SubscriptionKey;
-      const modelEffort =
-        (form.elements.namedItem("modelEffort") as HTMLInputElement)?.value
-          .trim()
-          .split(/[\s/]+/)
-          .filter(Boolean) || [];
-      const model = modelEffort[0] || "";
-      const effort = modelEffort[1] || "";
-      const mode = ((form.elements.namedItem("mode") as HTMLSelectElement)
-        ?.value || "standard") as "standard" | "fast";
+      const plan = calibrationPlan();
+      const candidateKey = (
+        form.elements.namedItem("candidateKey") as HTMLSelectElement | null
+      )?.value;
       const actualMinutes = numberField(form, "actualMinutes");
       const representative = form.elements.namedItem(
         "representativeTask",
       ) as HTMLInputElement | null;
       if (
-        !model ||
-        !effort ||
+        !candidateKey ||
         actualMinutes === undefined ||
         !representative?.checked
       )
@@ -1001,15 +1027,9 @@ function setupCalibration(
       const result = controller.getResult();
       const record =
         result?.orderedScored.find(
-          (candidate) =>
-            candidate.model === model &&
-            candidate.effort === effort &&
-            candidate.mode === mode,
+          (candidate) => candidate.key === candidateKey,
         ) ||
-        snapshot.records.find(
-          (candidate) =>
-            candidate.model === model && candidate.effort === effort,
-        );
+        snapshot.records.find((candidate) => candidate.key === candidateKey);
       if (!record) return;
       const weeklyBefore = numberField(form, "weeklyBefore");
       const weeklyAfter = numberField(form, "weeklyAfter");
@@ -1041,7 +1061,7 @@ function setupCalibration(
       );
       controller.setStore(appendWorkloadObservation(workload));
       form.reset();
-      updateCalibrationStatus(state, copy, controller);
+      updateCalibrationStatus(state, copy, controller, calibrationPlan());
       controller.rerender();
     });
   shadow
@@ -1049,7 +1069,7 @@ function setupCalibration(
     ?.addEventListener("click", () => {
       if (!window.confirm("Reset local calibration?")) return;
       controller.setStore(clearCalibration());
-      updateCalibrationStatus(state, copy, controller);
+      updateCalibrationStatus(state, copy, controller, calibrationPlan());
       controller.rerender();
     });
 }

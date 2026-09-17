@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_WORKLOAD_ALPHA, PLAN_LIMITS } from "../src/config.js";
+import { WORKLOAD_ALPHA_PRIOR, PLAN_LIMITS } from "../src/config.js";
 import {
   createDefaultCalibrationContext,
   evaluateCandidateEligibility,
@@ -108,12 +108,12 @@ test("the default workload alpha is 5 and scales default endurance accordingly",
   });
   const defaultRecord = evaluateRecords([record()], "plus", defaultContext)[0];
   const neutralRecord = evaluateRecords([record()], "plus", neutralContext)[0];
-  assert.equal(defaultContext.workload.alpha, DEFAULT_WORKLOAD_ALPHA);
+  assert.equal(defaultContext.workload.alpha, WORKLOAD_ALPHA_PRIOR);
   assert.ok(
     Math.abs(
       neutralRecord.shortWindowEnduranceMinutes! /
         defaultRecord.shortWindowEnduranceMinutes! -
-        DEFAULT_WORKLOAD_ALPHA,
+        WORKLOAD_ALPHA_PRIOR,
     ) < 1e-10,
   );
 });
@@ -436,4 +436,41 @@ test("strong quota calibration can exclude actual resource infeasibility", () =>
     ).reason,
     "resource-weekly",
   );
+});
+
+test("plan and workload scale change relative score gaps", () => {
+  const fastHeavy = record({
+    key: "fast-heavy",
+    benchmarkCostEquivalent: 4,
+    benchmarkMinutes: 5,
+    qualityIq: 104,
+  });
+
+  const slowCheap = record({
+    key: "slow-cheap",
+    benchmarkCostEquivalent: 0.5,
+    benchmarkMinutes: 20,
+    qualityIq: 104,
+  });
+
+  function gap(alpha: number) {
+    const ctx = context("pro20", {
+      workload: {
+        alpha,
+        beta: 1,
+        quotaConfidence: 0,
+        timeConfidence: 0,
+        status: "baseline",
+        sampleCount: 0,
+      },
+    });
+
+    const evaluated = evaluateRecords([fastHeavy, slowCheap], "pro20", ctx);
+
+    const scored = scoreRecords(evaluated, "effectiveness", ctx);
+
+    return scored[0].strategyScore - scored[1].strategyScore;
+  }
+
+  assert.notEqual(gap(1), gap(5));
 });

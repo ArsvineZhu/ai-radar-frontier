@@ -1,4 +1,4 @@
-import { DEFAULT_WORKLOAD_ALPHA, PLAN_LIMITS } from "./config.js";
+import { WORKLOAD_ALPHA_PRIOR, PLAN_LIMITS } from "./config.js";
 import type { SubscriptionKey } from "./scoring.js";
 
 type ShortWindowMethod = "full-window" | "paired-meter";
@@ -350,11 +350,11 @@ export function estimateWorkload(
   const timeConfidence = Math.min(1, timeSampleCount / 3);
   const alpha =
     alphaRaw === null
-      ? DEFAULT_WORKLOAD_ALPHA
+      ? WORKLOAD_ALPHA_PRIOR
       : Math.exp(
-          Math.log(DEFAULT_WORKLOAD_ALPHA) +
+          Math.log(WORKLOAD_ALPHA_PRIOR) +
             quotaConfidence *
-              (Math.log(alphaRaw) - Math.log(DEFAULT_WORKLOAD_ALPHA)),
+              (Math.log(alphaRaw) - Math.log(WORKLOAD_ALPHA_PRIOR)),
         );
   const beta =
     betaRaw === null ? 1 : Math.exp(timeConfidence * Math.log(betaRaw));

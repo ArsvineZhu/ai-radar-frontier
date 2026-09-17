@@ -204,8 +204,7 @@ export function createShellMarkup(
               <div><h4>${copy.workloadObservation}</h4><p>${copy.workloadObservationHint}</p></div>
             </div>
             <form data-cr-workload-form class="cr-calibration-form">
-              <label class="cr-field"><span>${copy.modelEffort}</span><input name="modelEffort" type="text" placeholder="gpt-6-astra / medium" required></label>
-              <label class="cr-field"><span>${copy.executionMode}</span><select name="mode"><option value="standard">Standard</option><option value="fast">Fast</option></select></label>
+              <label class="cr-field"><span>${copy.modelEffort}</span><select name="candidateKey" data-cr-workload-candidate required></select></label>
               <label class="cr-field"><span>${copy.actualMinutes}</span><input name="actualMinutes" type="number" min="0.01" step="0.1" required></label>
               <label class="cr-field"><span>${copy.weeklyBefore}</span><input name="weeklyBefore" type="number" min="0" max="100" step="0.1"></label>
               <label class="cr-field"><span>${copy.weeklyAfter}</span><input name="weeklyAfter" type="number" min="0" max="100" step="0.1"></label>
@@ -243,6 +242,10 @@ function formatQualityMargin(value: number): string {
     ? String(absolute)
     : absolute.toFixed(1);
   return `${rounded > 0 ? "+" : "−"}${formatted} IQ`;
+}
+
+function formatPercentDelta(value: number): string {
+  return `${value >= 0 ? "+" : "−"}${(Math.abs(value) * 100).toFixed(1)}%`;
 }
 
 function formatMultiplier(value: number): string {
@@ -314,7 +317,8 @@ export function renderCard(
   calibration: CalibrationDerivedContext,
   animateEntry: boolean,
   onOpen: (record: ScoredRecord) => void,
-): HTMLButtonElement {
+): HTMLElement {
+  const wrapper = makeElement("article", "cr-card-group");
   const button = makeElement("button", "cr-card");
   button.type = "button";
   if (animateEntry)
@@ -323,7 +327,6 @@ export function renderCard(
       `${Math.min(Math.max(rank - 1, 0), 7) * 18}ms`,
     );
   else button.dataset.crStatic = "true";
-
   const modeLabel = record.mode === "fast" ? ` ${copy.fast}` : "";
   const winnerText = copy.ariaPreferred(winnerLabels);
   const fastDescription =
@@ -419,7 +422,84 @@ export function renderCard(
 
   button.append(head, iqRow, foot);
   button.addEventListener("click", () => onOpen(record));
-  return button;
+  wrapper.append(button);
+
+  if (group.alternatives.length) {
+    const alternativesToggle = makeElement(
+      "button",
+      "cr-alternatives-toggle",
+      copy.alternativesTitle(group.alternatives.length),
+    );
+    alternativesToggle.type = "button";
+    alternativesToggle.setAttribute("aria-expanded", "false");
+
+    const alternativesPanel = makeElement("div", "cr-alternatives-panel");
+    alternativesPanel.hidden = true;
+
+    let pinned = false;
+    alternativesToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      pinned = !pinned;
+      alternativesPanel.hidden = !pinned;
+      alternativesToggle.setAttribute("aria-expanded", String(pinned));
+    });
+    wrapper.addEventListener("mouseenter", () => {
+      if (!pinned) alternativesPanel.hidden = false;
+    });
+    wrapper.addEventListener("mouseleave", () => {
+      if (!pinned) alternativesPanel.hidden = true;
+    });
+    wrapper.addEventListener("focusin", () => {
+      if (!pinned) alternativesPanel.hidden = false;
+    });
+    wrapper.addEventListener("focusout", (event) => {
+      if (!pinned && !wrapper.contains(event.relatedTarget as Node | null)) {
+        alternativesPanel.hidden = true;
+      }
+    });
+
+    for (const alternative of group.alternatives) {
+      const iqDelta = alternative.qualityIq - record.qualityIq;
+      const timeDelta =
+        alternative.effectiveMinutes / record.effectiveMinutes - 1;
+      const weeklyDelta =
+        alternative.effectiveWeeklyShare !== null &&
+        record.effectiveWeeklyShare !== null
+          ? alternative.effectiveWeeklyShare / record.effectiveWeeklyShare - 1
+          : null;
+      const altTimeText = `${formatPercentDelta(timeDelta)} ${copy.time}`;
+      const weeklyText = ` · ${formatPercentDelta(weeklyDelta)} ${copy.quota}`;
+      const alternativeButton = makeElement("button", "cr-alternative");
+      alternativeButton.type = "button";
+      alternativeButton.append(
+        makeElement(
+          "span",
+          "cr-alternative-name",
+          `${alternative.label}${alternative.mode === "fast" ? ` ${copy.fast}` : ""}`,
+        ),
+        makeElement(
+          "span",
+          "cr-alternative-delta",
+          formatQualityMargin(iqDelta),
+        ),
+        makeElement("span", "cr-alternative-delta", altTimeText),
+      );
+      if (weeklyDelta !== null)
+        alternativeButton.append(
+          makeElement("span", "cr-alternative-delta", weeklyText.trim()),
+        );
+      alternativeButton.setAttribute(
+        "aria-label",
+        `${alternative.label}${alternative.mode === "fast" ? ` ${copy.fast}` : ""}, ${formatQualityMargin(iqDelta)}, ${altTimeText}${weeklyDelta !== null ? `, ${weeklyText.trim()}` : ""}, ${copy.switchTo}`,
+      );
+      alternativeButton.addEventListener("click", () => onOpen(alternative));
+      alternativesPanel.append(alternativeButton);
+    }
+
+    wrapper.append(alternativesToggle, alternativesPanel);
+  }
+
+  return wrapper;
 }
 
 function recordDetails(record: ModelRecord | ScoredRecord, copy: Copy): string {
@@ -468,14 +548,50 @@ export function renderExclusionItem(
     makeElement("div", "cr-exclusion-model", `${record.label}${modeLabel}`),
     makeElement("div", "cr-exclusion-values", recordDetails(record, copy)),
   );
-  item.append(
-    details,
-    makeElement(
-      "span",
-      "cr-exclusion-witness",
-      exclusionReason(record, reason, copy),
-    ),
+  const witness = makeElement(
+    "span",
+    "cr-exclusion-witness",
+    exclusionReason(record, reason, copy),
   );
+  if (reason === "practical-dominated") {
+    const dominated = record as ScoredRecord;
+    const dominator = dominated.practicalDominators?.[0];
+    if (dominator) {
+      const iqDelta = dominated.qualityIq - dominator.qualityIq;
+      const timeDelta =
+        dominated.effectiveMinutes / dominator.effectiveMinutes - 1;
+      const weeklyDelta =
+        dominated.effectiveWeeklyShare !== null &&
+        dominator.effectiveWeeklyShare !== null
+          ? dominated.effectiveWeeklyShare / dominator.effectiveWeeklyShare - 1
+          : null;
+      const witnessDeltas = makeElement("div", "cr-exclusion-witness-deltas");
+      witnessDeltas.append(
+        makeElement(
+          "span",
+          "cr-exclusion-witness",
+          copy.dominatedBy(dominator.label),
+        ),
+        makeElement("span", "cr-exclusion-delta", formatQualityMargin(iqDelta)),
+        makeElement(
+          "span",
+          "cr-exclusion-delta",
+          `${formatPercentDelta(timeDelta)} ${copy.time}`,
+        ),
+      );
+      if (weeklyDelta !== null)
+        witnessDeltas.append(
+          makeElement(
+            "span",
+            "cr-exclusion-delta",
+            `${formatPercentDelta(weeklyDelta)} ${copy.quota}`,
+          ),
+        );
+      item.append(details, witnessDeltas);
+      return item;
+    }
+  }
+  item.append(details, witness);
   return item;
 }
 
