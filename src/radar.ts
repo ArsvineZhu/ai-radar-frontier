@@ -15,6 +15,10 @@ interface RawObject {
   [key: string]: unknown;
 }
 
+function catalogFor(model: string) {
+  return MODEL_CATALOG[model as keyof typeof MODEL_CATALOG];
+}
+
 export interface FastMeasurement {
   model: string;
   effort: string | null;
@@ -137,7 +141,7 @@ function normalizePoint(point: unknown): {
     iq === null ||
     benchmarkCostEquivalent === null ||
     benchmarkMinutes === null ||
-    !MODEL_CATALOG[model]
+    !catalogFor(model)
   ) {
     return null;
   }
@@ -159,7 +163,7 @@ function normalizeModelId(value: string): string | null {
   if (normalized === "sol") return "gpt-5.6-sol";
   if (normalized === "terra") return "gpt-5.6-terra";
   if (normalized === "luna") return "gpt-5.6-luna";
-  return MODEL_CATALOG[normalized] ? normalized : null;
+  return catalogFor(normalized) ? normalized : null;
 }
 
 function readFastRatio(entry: RawObject | null): number | null {
@@ -357,7 +361,7 @@ export function createFastEstimator(
       exactValues.push(measurement);
       exact.set(key, exactValues);
     }
-    const catalog = MODEL_CATALOG[measurement.model];
+    const catalog = catalogFor(measurement.model);
     if (catalog?.fastGroup && catalog.nominalFastSpeedup > 1) {
       const groupValues = byGroup.get(catalog.fastGroup) ?? [];
       groupValues.push(measurement);
@@ -368,7 +372,7 @@ export function createFastEstimator(
   return {
     measurementCount: freshMeasurements.length,
     estimate(record) {
-      const catalog = MODEL_CATALOG[record.model];
+      const catalog = catalogFor(record.model);
       if (!catalog || catalog.nominalFastSpeedup <= 1) return null;
       const exactValues = (
         exact.get(keyFor(record.model, record.effort)) ?? []
@@ -448,7 +452,7 @@ export function normalizeRecords(efficiencyPayload: unknown): ModelRecord[] {
     if (!normalized || !SUPPORTED_MODEL_IDS.includes(normalized.model)) {
       continue;
     }
-    const catalog = MODEL_CATALOG[normalized.model];
+    const catalog = catalogFor(normalized.model);
     const reference = quotaEntry(normalized.model, normalized.effort);
     records.push({
       model: normalized.model,

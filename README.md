@@ -105,6 +105,21 @@ benchmarkMinutes(Fast) = benchmarkMinutes(Standard) / E2E ratio
 
 界面使用 Shadow DOM 隔离，并采用 Apple HIG 的渐进披露、Geist 的紧凑数字排版和 Shadcn 风格的分段控件、卡片、状态区与 dialog。校准 section 使用轻微淡入、位移和高度过渡；菜单、modal 和卡片保留克制的状态动画。系统开启减少动态效果后，所有切换会降为即时状态。
 
+## Tauri 桌面版
+
+`apps/desktop` 是 Windows 首发的 Tauri 2 应用。桌面端使用 React + TypeScript，按 shadcn/ui 方式组织可访问组件，采用 Apple HIG 的渐进披露、Geist/Vercel 的数字排版和克制动效。`packages/core` 是两端共享的算法 facade；桌面端不复制评分、额度或 Fast 证据规则。
+
+桌面端的 Radar 网络请求由 Rust/Tauri 固定命令发出，并使用带 ETag/Last-Modified 的本地缓存。它只访问三个允许域名中的固定公开端点。Codex 本地统计默认关闭；开启前会说明读取范围，之后仅扫描有限深度的预定义统计路径或用户明确指定的目录。识别到的原始统计 payload 使用 AES-256-GCM 加密后保存到本机 SQLite，密钥进入系统 keyring，未知 schema、敏感字段或 keyring 失败均不会降级为明文。
+
+```bash
+npm run desktop:check   # React/TypeScript/Vite
+npm run desktop:dev     # Tauri 开发窗口
+npm run desktop:build   # Windows x64 可执行文件与安装包
+npm run desktop:portable # Windows 便携 ZIP（不写安装注册表）
+```
+
+桌面端 app data 与 userscript localStorage 完全分离，不读取聊天正文、提示词、代码、凭据或认证 token；userscript 的 Tampermonkey 元数据、发布 URL 和运行边界保持不变。详见 [apps/desktop/README.md](apps/desktop/README.md) 与 [packages/core/README.md](packages/core/README.md)。
+
 ## 项目结构
 
 ```text

@@ -1,5 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/main.ts", "scripts/*.mjs"],
-  "project": ["src/**/*.ts", "scripts/**/*.mjs"]
+  "workspaces": {
+    ".": {
+      "entry": ["src/main.ts", "scripts/*.mjs"],
+      "project": ["src/**/*.ts", "scripts/**/*.mjs"]
+    },
+    "apps/desktop": {
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "packages/core": {
+      "project": ["src/**/*.ts"]
+    }
+  }
 }
