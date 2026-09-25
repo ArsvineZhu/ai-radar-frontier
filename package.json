@@ -1,6 +1,6 @@
 {
   "name": "ai-radar-frontier-userscript",
-  "version": "1.1.1",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "description": "AI 雷达效率前沿 Tampermonkey userscript",
@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "knip": "knip",
+    "quota:refresh": "tsx scripts/refresh-quota-reference.ts",
     "research:collect": "node scripts/collect-research-data.mjs",
     "research:analyze": "node scripts/analyze-research-data.mjs",
     "test": "tsx --test \"tests/*.test.ts\"",

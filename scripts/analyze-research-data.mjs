@@ -34,6 +34,8 @@ const persistenceThresholds = {
 };
 const modelFamilies = {
   "gpt-6-astra": "gpt-6",
+  "gpt-6-sol": "gpt-6",
+  "gpt-6-luna": "gpt-6",
   "gpt-5.6-sol": "gpt-5.6",
   "gpt-5.6-terra": "gpt-5.6",
   "gpt-5.6-luna": "gpt-5.6",
@@ -41,6 +43,15 @@ const modelFamilies = {
 };
 const efficiencyHistorySource =
   "https://codexradar.com/data/intelligence-efficiency.json";
+
+const quotaFamilies = {
+  "gpt-6-astra": "astra",
+  "gpt-6-sol": "gpt6-sol",
+  "gpt-6-luna": "gpt6-luna",
+  "gpt-5.6-sol": "sol",
+  "gpt-5.6-terra": "terra",
+  "gpt-5.6-luna": "luna",
+};
 
 function readJson(relativePath) {
   return readFile(resolve(root, relativePath), "utf8").then(JSON.parse);
@@ -782,7 +793,7 @@ function buildFastSummary(rows) {
 }
 
 function familyForModel(model) {
-  if (modelFamilies[model]) return model.replace(/^gpt-[^ -]+-/, "");
+  if (quotaFamilies[model]) return quotaFamilies[model];
   if (model === "gpt-5.5") return "5.5";
   return null;
 }

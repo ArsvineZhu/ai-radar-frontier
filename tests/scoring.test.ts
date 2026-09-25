@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { WORKLOAD_ALPHA_PRIOR, PLAN_LIMITS } from "../src/config.js";
+import { QUOTA_REFERENCE } from "../src/quota.js";
 import {
   createDefaultCalibrationContext,
   evaluateCandidateEligibility,
@@ -26,8 +27,9 @@ function record(overrides: Partial<ModelRecord> = {}): ModelRecord {
     index: 0,
     key: "gpt-6-astra::medium",
     sampleCount: 100,
-    quotaBudget20x: 100,
-    quotaSource: "family-radar",
+    quotaWeight: QUOTA_REFERENCE.planCapacities.pro20 / 100,
+    quotaValidTasks: 112,
+    quotaSource: "measured-anchor",
     mode: "standard",
     ...overrides,
   };
@@ -46,7 +48,7 @@ function context(
   };
 }
 
-test("family capacity scales by 1, 5, and 20 plan multipliers", () => {
+test("one quota weight scales across 1x, 5x, and 20x plan capacities", () => {
   const candidate = record({ benchmarkCostEquivalent: 1 });
   const plus = evaluateRecords([candidate], "plus")[0];
   const pro5 = evaluateRecords([candidate], "pro5")[0];
@@ -54,8 +56,14 @@ test("family capacity scales by 1, 5, and 20 plan multipliers", () => {
   assert.equal(PLAN_LIMITS.plus.multiplier, 1);
   assert.equal(PLAN_LIMITS.pro5.multiplier, 5);
   assert.equal(PLAN_LIMITS.pro20.multiplier, 20);
-  assert.equal(plus.effectiveWeeklyShare, 5 * pro5.effectiveWeeklyShare!);
-  assert.equal(plus.effectiveWeeklyShare, 20 * pro20.effectiveWeeklyShare!);
+  assert.ok(
+    Math.abs(plus.effectiveWeeklyShare! - 5 * pro5.effectiveWeeklyShare!) <
+      1e-12,
+  );
+  assert.ok(
+    Math.abs(plus.effectiveWeeklyShare! - 20 * pro20.effectiveWeeklyShare!) <
+      1e-12,
+  );
 });
 
 test("derived weekly share, short share, and endurance follow the V3 formulas", () => {
@@ -260,6 +268,51 @@ test("IQ 96 has no special qualification gate and IQ below 70 remains excluded",
   assert.equal(
     evaluateCandidateEligibility(candidates[1], contextValue).reason,
     "below-iq-floor",
+  );
+});
+
+test("Plus applies the 5h safety gate at 50% while Pro plans do not", () => {
+  const candidateFor = (shortShare: number) =>
+    evaluateRecords(
+      [
+        record({
+          key: `short-${shortShare}`,
+          benchmarkCostEquivalent: shortShare * 0.155,
+        }),
+      ],
+      "plus",
+    )[0];
+  assert.equal(
+    evaluateCandidateEligibility(
+      candidateFor(0.49),
+      createDefaultCalibrationContext("plus"),
+    ).eligible,
+    true,
+  );
+  assert.equal(
+    evaluateCandidateEligibility(
+      candidateFor(0.5),
+      createDefaultCalibrationContext("plus"),
+    ).eligible,
+    true,
+  );
+  assert.equal(
+    evaluateCandidateEligibility(
+      candidateFor(0.51),
+      createDefaultCalibrationContext("plus"),
+    ).reason,
+    "resource-short-window-risk",
+  );
+  const proCandidate = evaluateRecords(
+    [record({ benchmarkCostEquivalent: 0.51 * 0.155 })],
+    "pro5",
+  )[0];
+  assert.equal(
+    evaluateCandidateEligibility(
+      proCandidate,
+      createDefaultCalibrationContext("pro5"),
+    ).eligible,
+    true,
   );
 });
 

@@ -155,7 +155,6 @@ export function resetGridViewport(
 ): void {
   clearGridAnimation(animationState);
   state.expanded = false;
-  state.animateCardsOnNextRender = true;
   state.gridWidth = null;
   if (!(shell instanceof HTMLElement)) {
     return;

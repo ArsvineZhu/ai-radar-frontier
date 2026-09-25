@@ -7,6 +7,7 @@ import {
   IQ_REFERENCE,
   IQ_RESOLUTION,
   PLAN_LIMITS,
+  PLUS_SHORT_WINDOW_TASK_SHARE_LIMIT,
   QUALITY_BAND_WEIGHTS,
   STRATEGY_WEIGHTS,
   TIME_EQUIV_REL,
@@ -15,6 +16,7 @@ import {
   WEEKLY_UTILITY_REFERENCE_SHARE,
 } from "./config.js";
 import type { CalibrationDerivedContext } from "./calibration.js";
+import { planCapacity } from "./quota.js";
 
 export type StrategyKey = "quality" | "effectiveness" | "budget" | "speed";
 export type SubscriptionKey = "plus" | "pro5" | "pro20";
@@ -27,6 +29,7 @@ export type EligibilityExclusionReason =
   | "quota-unknown"
   | "resource-weekly"
   | "resource-short-window"
+  | "resource-short-window-risk"
   | "fast-evidence-unavailable"
   | "practical-dominated";
 
@@ -42,8 +45,13 @@ export interface ModelRecord {
   index: number;
   key: string;
   sampleCount: number | null;
-  quotaBudget20x: number | null;
-  quotaSource: "family-radar" | "unavailable";
+  runs24h?: number | null;
+  sourceUpdatedAt?: string | null;
+  quotaWeight: number | null;
+  quotaValidTasks: number | null;
+  quotaDiscriminationCoverage?: number | null;
+  quotaDiscriminationConfidence?: number | null;
+  quotaSource: "measured-anchor" | "matrix-estimate" | "unavailable";
   mode: Mode;
   fastMultiplier?: number;
   fastEvidenceLevel?: FastEvidenceLevel;
@@ -165,16 +173,15 @@ function weeklyShare(
   subscriptionKey: SubscriptionKey,
 ): number | null {
   if (
-    record.quotaBudget20x === null ||
-    !finite(record.quotaBudget20x) ||
-    record.quotaBudget20x <= 0
+    record.quotaWeight === null ||
+    !finite(record.quotaWeight) ||
+    record.quotaWeight <= 0
   ) {
     return null;
   }
-  const plan = PLAN_LIMITS[subscriptionKey];
-  const capacity = (record.quotaBudget20x * plan.multiplier) / 20;
+  const capacity = planCapacity(subscriptionKey);
   if (!(capacity > 0)) return null;
-  return record.benchmarkCostEquivalent / capacity;
+  return (record.benchmarkCostEquivalent * record.quotaWeight) / capacity;
 }
 
 function qualityUtility(iq: number): number {
@@ -273,6 +280,13 @@ export function evaluateCandidateEligibility(
   }
   if (record.effectiveWeeklyShare === null) {
     return { eligible: false, reason: "quota-unknown" };
+  }
+  if (
+    calibration.shortWindowEnabled &&
+    record.effectiveShortWindowShare !== null &&
+    record.effectiveShortWindowShare > PLUS_SHORT_WINDOW_TASK_SHARE_LIMIT
+  ) {
+    return { eligible: false, reason: "resource-short-window-risk" };
   }
   if (calibration.workload.quotaConfidence >= 0.67) {
     if (record.effectiveWeeklyShare >= 1) {

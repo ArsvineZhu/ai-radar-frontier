@@ -1,5 +1,5 @@
 {
-  "retrieved_at": "2026-09-16T10:17:19.905Z",
+  "retrieved_at": "2026-09-25T04:38:53.623Z",
   "allowed_hosts": [
     "codexradar.com",
     "deng.codexradar.com",
@@ -95,21 +95,49 @@
       "note": null
     },
     {
-      "url": "https://codexradar.com/cup/#submit",
-      "category": "radar-data",
-      "discovered_from": "codexradar-home",
-      "fetched": false,
-      "note": null
-    },
-    {
-      "url": "https://codexradar.com/cup/#gallery",
-      "category": "radar-data",
-      "discovered_from": "codexradar-home",
-      "fetched": false,
-      "note": null
-    },
-    {
       "url": "https://deng.codexradar.com/",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/thumb/7a3932c255303ef7138bb9097f37c9c252f3c51e0e12678ae50366edd08aeb96?v=20260913-cover-3",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/thumb/b4b6893f74eb342486347606bb8f4000314ae2abfce1f201dd42d4182e82f257?v=20260913-cover-3",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/thumb/cc99346fd2335c99f3895e987a272f17f54d86fbb58d890d6e5ade06aa03da91?v=20260913-cover-3",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/thumb/f2366c199a1ba33126cacb36bd1ddf08d74eb57a03e6df7378c4f2994548264b?v=20260913-cover-3",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/thumb/9f7bb7953b7cbe9d0df48fcc10c0dbc56d362dcffa8275ef66ec6ddfea591333?v=20260913-cover-3",
+      "category": "radar-data",
+      "discovered_from": "codexradar-home",
+      "fetched": false,
+      "note": null
+    },
+    {
+      "url": "https://codexradar.com/cup/thumb/93c0320b076c72edc7250147250eb75d131e1494046567f665dadf04f68bd8b5?v=20260913-cover-3",
       "category": "radar-data",
       "discovered_from": "codexradar-home",
       "fetched": false,
@@ -137,8 +165,8 @@
       "note": "Binary/static asset was inventoried but not fetched as a data source."
     },
     {
-      "url": "https://codexradar.com/data/fast-radar-history.json",
-      "category": "fast-radar",
+      "url": "https://codexradar.com/api/cup/homepage-ratings",
+      "category": "model-ratings",
       "discovered_from": "codexradar-home",
       "fetched": true,
       "note": null
@@ -158,7 +186,7 @@
       "note": null
     },
     {
-      "url": "https://codexradar.com/data/intelligence-efficiency.json?v=20260804-activity24h",
+      "url": "https://codexradar.com/data/intelligence-efficiency-codex.json?v=20260924-codex",
       "category": "deep-swe-efficiency",
       "discovered_from": "codexradar-home",
       "fetched": true,
@@ -419,21 +447,21 @@
     {
       "url": "https://deng.codexradar.com/api/v1/table?ui=20260815-equal-iq-v2",
       "category": "task-matrix",
-      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-d553a1f21482",
+      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-1d0ee1b45215",
       "fetched": true,
       "note": null
     },
     {
       "url": "https://deng.codexradar.com/api/v1/iq-history?v=20260815-equal-iq-v2",
       "category": "history-trend",
-      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-d553a1f21482",
+      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-1d0ee1b45215",
       "fetched": true,
       "note": null
     },
     {
       "url": "https://deng.codexradar.com/api/v1/intelligence-efficiency?v=20260823-trend-cohort-v1",
       "category": "history-trend",
-      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-d553a1f21482",
+      "discovered_from": "script-deng.codexradar.com-assets-radar-report.js-v-20260905-astra-1d0ee1b45215",
       "fetched": true,
       "note": null
     }

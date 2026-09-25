@@ -1,8 +1,8 @@
 # AI 雷达 · 效率前沿
 
-这是一个只读的 Tampermonkey TypeScript 用户脚本（版本 1.1.1）。它在 codexradar.com 的 DeepSWE 软件工程能力页顶部增加效率前沿推荐区，不改写原站模型卡片、图表、推荐区或社区评分。点击推荐卡片会滚动到对应的原站卡片并调用原站详情。
+这是一个只读的 Tampermonkey TypeScript 用户脚本（版本 1.3.0）。它在 codexradar.com 顶部增加 DeepSWE 效率前沿推荐区，独立于原站当前选中的效能标签，不改写原站模型卡片、图表、推荐区或社区评分。点击推荐卡片时，仅当原站正在显示 DeepSWE 卡片才会滚动并调用对应详情；其他标签下打开众测雷达效能页。
 
-运行时只读取公开的当前 Radar 数据：DeepSWE 效能接口、页面中的模型族额度雷达，以及公开 Fast E2E 数据。请求范围限定在 codexradar.com、deng.codexradar.com 和 api.codexradar.com。Research 快照不作为运行时依赖，脚本也不会运行模型、benchmark 或上传本地数据。
+运行时只读取公开的当前 Radar 数据：DeepSWE 效能接口和 Fast E2E 历史。额度参考由构建时公开的 DeepSWE task matrix、task-discrimination-v2 元数据与主站额度锚点生成，作为紧凑快照随脚本发布；大体量 research 快照不进入运行时。请求范围限定在 codexradar.com、deng.codexradar.com 和 api.codexradar.com。脚本不会运行模型、benchmark 或上传本地数据。
 
 ## 安装
 
@@ -12,24 +12,26 @@
 
 Userscript 元数据包含 GitHub Raw 的 @updateURL 与 @downloadURL。从 Raw 地址安装后，Tampermonkey 会按自身更新设置检查新版本；发布时递增 src/config.ts 的 VERSION，运行 npm run build 并发布生成的 outputs/ai-radar-frontier.user.js。
 
-偏好保存在 HOST_ID:preferences，包括订阅、排序和 Fast 开关。校准单独保存在 HOST_ID:quota-calibration:v1，只使用浏览器 localStorage，不会上传，也不会随普通偏好重置。损坏的校准数据会安全回退为空校准。
+偏好保存在 HOST_ID:preferences，包括订阅、排序和 Fast 开关。校准单独保存在 HOST_ID:quota-calibration:v2，只使用浏览器 localStorage，不会上传，也不会随普通偏好重置。首次载入时，v1 观察会按当前统一额度尺度重新计算；新数据校验通过后才移除旧记录。损坏的校准数据会安全回退为空校准。
 
 ## 推荐模型
 
 推荐对象是 model × effort × mode。Standard 和 Fast 使用独立候选、独立卡片和独立分组。
 
-DeepSWE 的 iq、average_price_usd、average_minutes 分别映射为质量 IQ、基准等价负担输入和基准任务耗时输入。等价费用是 Radar 的标准化测量，不是用户账单；界面主卡只展示周额度负担、简短任务耗时，以及当前计划可用的 5h 耐力或周耐力。
+DeepSWE 的 iq、average_price_usd、average_minutes 分别映射为质量 IQ、基准等价负担输入和基准任务耗时输入。等价费用是 Radar 的标准化测量，不是用户账单。Plus 主卡使用 `每任务 / 5h`、`典型耗时` 和 `耐力时长 / 5h`；Pro 主卡使用对应的周额度和周耐力尺度，hover 详情会补充另一种尺度。
+
+GPT-6 Sol 和 GPT-6 Luna 的 DeepSWE 观测一旦出现在公开接口就立即参与排序。早期样本会显示样本量提示；GPT-6 Sol 使用公开 20x 容量锚点，GPT-6 Luna 没有公开容量时保留矩阵估算并显示 `≈`。Fast 只有明确携带 GPT-6 model identity 且达到最小有效样本的记录才能生成，不会从旧的家族名记录迁移给 GPT-6。
 
 ### 计划与容量
 
-模型族 20x 公开容量记为 B7_20x，计划容量为：
+所有模型使用同一计划容量与额度权重公式：
 
 ```text
-B7(family, plan) = B7_20x(family) × planMultiplier / 20
-planMultiplier = Plus: 1, Pro 5x: 5, Pro 20x: 20
+weeklyShare = alpha × benchmarkCostEquivalent × quotaWeight / planCapacity
+planCapacity ∈ { Plus, Pro 5x, Pro 20x }
 ```
 
-没有当前模型族容量的候选会显示在说明中，但不能获得完整的自动推荐分数。
+`planCapacity` 使用公开的套餐容量。`quotaWeight` 由 task matrix 的模型档位任务倍率及公开实测模型容量锚点统一标定；task-discrimination-v2 只用于记录任务覆盖度和证据置信度，不替换 IQ。GPT-6 Luna 等没有容量锚点的档位依据 task matrix 估算并显示 `≈`。这些值保存在 [quota-reference.json](src/quota-reference.json)，可用 `npm run quota:refresh` 从公开源刷新并记录 SHA256。没有可用 task-matrix 档位数据的候选不能获得完整的自动推荐分数。
 
 Plus 初始启用 5 小时窗口模型；Pro 5x 和 Pro 20x 的 5 小时模型保留在配置中但暂不参与推荐。默认短窗口/周容量比例为 0.155，它是临时经验先验，不是官方常量。
 
@@ -53,13 +55,13 @@ beta  = actual active minutes / benchmark minutes
 
 有效观察使用对数空间几何中位数。alpha 按额度暴露向默认值 5 收缩，beta 按样本数向 1 收缩。模型、档位、模式和当时的基准值会随观察保存；不满足输入范围的观察保留为 rejected，不参加估计。
 
-默认工作负载先验 `alpha = 5`，对应系统默认的典型任务周负担；无个人观察数据时使用该先验估计，DeepSWE 原始额度仅作为底层标定量。因此默认 5h 耐力相对于未缩放值除以约 `5`。用户提交代表性任务后，alpha 会以额度暴露置信度向个人观察值收缩。
+默认工作负载先验 `alpha = 5`，对应系统默认典型任务周负担；无个人观察数据时，默认 5h 耐力按该先验缩放。`beta = 1`。用户提交代表性任务后，alpha 会以额度暴露置信度向个人观察值收缩。Plus 还要求单次典型任务最多消耗 50% 的当前 5h 窗口；超过该门槛的候选保留在说明中，但不自动推荐。
 
 ### 运行时派生指标
 
 ```text
 effectiveMinutes      = beta × benchmarkMinutes
-effectiveWeeklyShare  = alpha × benchmarkCostEquivalent / B7
+effectiveWeeklyShare  = alpha × benchmarkCostEquivalent × quotaWeight / planCapacity
 effectiveShortShare   = effectiveWeeklyShare / kappa
 H5raw                 = effectiveMinutes / effectiveShortShare
 H5                    = min(H5raw, 5h window duration)
@@ -74,7 +76,7 @@ UW = -log2(effectiveWeeklyShare / 0.01)
 UH = log2(min(H5, windowMinutes) / 60)
 ```
 
-IQ 小于 70 是唯一的质量硬门槛。IQ 100 是参考点，IQ 96 没有资格门。没有足够个人工作负载校准时，达到周容量或短窗口容量只显示资源风险；额度校准置信度达到 0.67 后，典型任务负担达到容量才成为自动推荐硬排除。
+IQ 小于 70 是质量硬门槛。IQ 100 是参考点，IQ 96 没有资格门。Plus 的 5h 安全门槛独立于个人校准；周容量和达到 100% 短窗口容量的强资源排除仍要求额度校准置信度达到 0.67。
 
 策略权重集中在 src/config.ts：
 
@@ -95,7 +97,9 @@ benchmarkCost(Fast) = 2.5 × benchmarkCost(Standard)
 benchmarkMinutes(Fast) = benchmarkMinutes(Standard) / E2E ratio
 ```
 
-证据顺序为：模型+档位精确证据、同模型最近 30 天 P25、fastGroup 最近 30 天履约率 P25。实时 DOM 测量标记为 live；没有时间戳的历史观察不会被当作永久新鲜。没有可靠证据时不生成 Fast 候选。
+证据顺序为：模型+档位精确证据、同模型最近 30 天 P25、fastGroup 最近 30 天履约率 P25。带明确 `model` 字段的记录才能归属于对应代际；只有家族名的旧记录不会归给 GPT-6。实时 DOM 测量标记为 live；没有时间戳的历史观察不会被当作永久新鲜。没有达到最小有效样本的可靠证据时不生成 Fast 候选。
+
+卡片入场动画只用于首次成功加载和主动切换订阅、策略或 Fast。原站页面点击、无关 DOM 变化、布局变化和普通数据重绘保持静态；展开/收起仍保留网格高度过渡。
 
 ## 交互与动效
 
@@ -108,7 +112,9 @@ src/
 ├─ main.ts            挂载、原站观察、状态和校准交互
 ├─ config.ts          选择器、计划、权重、阈值与运行时状态
 ├─ calibration.ts     kappa、alpha、beta 与校准状态
-├─ radar.ts           当前 DeepSWE、模型族额度和 Fast 适配
+├─ radar.ts           当前 DeepSWE 与 Fast 适配
+├─ quota.ts           统一计划容量和紧凑 quota reference
+├─ quota-math.ts      task matrix 权重及公开容量锚点编译
 ├─ scoring.ts         派生指标、固定尺度效用、排序、压缩关系
 ├─ recommendation.ts  候选生成、资格筛选和推荐组编排
 ├─ storage.ts         偏好与独立校准存储
@@ -119,6 +125,8 @@ src/
 ```
 
 research/ 保存公开数据研究快照，分为 raw/、normalized/ 和 analysis/。采集和分析脚本只用于离线研究，保留原始响应、响应摘要、哈希、公式、筛选条件、随机种子和输入哈希；它们不会被打包进运行时。
+
+运行 `npm run quota:refresh` 可从公开 task matrix 和主站额度雷达刷新紧凑 quota reference。此命令只读取公开数据，不会启动模型或 benchmark。
 
 ## 开发与验证
 

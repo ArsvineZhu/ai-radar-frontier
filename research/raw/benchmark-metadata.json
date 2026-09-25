@@ -1,5 +1,5 @@
 {
-  "retrieved_at": "2026-09-16T10:17:19.905Z",
+  "retrieved_at": "2026-09-25T04:38:53.623Z",
   "sources": [
     {
       "id": "task-table",
@@ -16,7 +16,7 @@
           "scoring_mode": "binary-majority",
           "score_label": "Pass rate",
           "rolling_window": 3,
-          "model_config_count": 70,
+          "model_config_count": 90,
           "reference_task_id": null,
           "reference_url": null,
           "task_bundle": null,
@@ -31,7 +31,7 @@
           "scoring_mode": "continuous-macro",
           "score_label": "Adjacency F1",
           "rolling_window": 3,
-          "model_config_count": 43,
+          "model_config_count": 58,
           "reference_task_id": "RP-group-1-public-example",
           "reference_url": "/assets/pompeii-reference/reference_question.png",
           "task_bundle": {
@@ -66,7 +66,7 @@
           "scoring_mode": "binary-majority",
           "score_label": "Pass rate",
           "rolling_window": 3,
-          "model_config_count": 70,
+          "model_config_count": 90,
           "reference_task_id": null,
           "reference_url": null,
           "task_bundle": null,
@@ -81,7 +81,7 @@
           "scoring_mode": "continuous-macro",
           "score_label": "Adjacency F1",
           "rolling_window": 3,
-          "model_config_count": 43,
+          "model_config_count": 58,
           "reference_task_id": "RP-group-1-public-example",
           "reference_url": "/assets/pompeii-reference/reference_question.png",
           "task_bundle": {

@@ -1,13 +1,12 @@
 import {
   DEFAULT_STRATEGY,
+  DEEPSWE_MODE,
   HOST_ID,
   IQ_MINIMUM,
   GRID_PREVIEW_CARD_LIMIT,
   SELECTORS,
-  SOURCE_STATUS_PATTERNS,
   STRATEGY_KEYS,
   SUBSCRIPTION_KEYS,
-  TARGET_MODE,
   VERSION,
   createState,
 } from "./config.js";
@@ -25,7 +24,7 @@ import {
   buildCalibrationSummary,
   createShortWindowObservation,
   createWorkloadObservation,
-  type CalibrationStoreV1,
+  type CalibrationStoreV2,
 } from "./calibration.js";
 import type { Copy } from "./i18n.js";
 import {
@@ -37,6 +36,13 @@ import {
 import { buildStrategyResult } from "./recommendation.js";
 import type { StrategyResult } from "./recommendation.js";
 import { loadRadarSnapshot } from "./radar.js";
+import { planCapacity } from "./quota.js";
+import {
+  mergeRenderReason,
+  shouldAnimateCards,
+  shouldReplaceGrid,
+} from "./render-policy.js";
+import type { RenderReason } from "./render-policy.js";
 import type { RadarSnapshot } from "./radar.js";
 import { isValidRecord } from "./scoring.js";
 import type { ModelRecord, ScoredRecord, SubscriptionKey } from "./scoring.js";
@@ -105,13 +111,15 @@ interface RadarRuntimeState {
 }
 
 interface RuntimeController {
-  getStore(): CalibrationStoreV1;
-  setStore(store: CalibrationStoreV1): void;
+  getStore(): CalibrationStoreV2;
+  setStore(store: CalibrationStoreV2): void;
   getSnapshot(): RadarSnapshot | null;
   getResult(): StrategyResult | null;
   setResult(result: StrategyResult): void;
   rerender(): void;
 }
+
+type RenderCallback = (reason?: RenderReason) => void;
 
 function syncStrategyControl(
   state: RuntimeState,
@@ -307,6 +315,8 @@ function updateDisclosure(
     entries.push([record, "resource-weekly"]);
   for (const record of result.excluded.resourceShortWindow)
     entries.push([record, "resource-short-window"]);
+  for (const record of result.excluded.resourceShortWindowRisk)
+    entries.push([record, "resource-short-window-risk"]);
   for (const record of result.excluded.fastEvidenceUnavailable)
     entries.push([record, "fast-evidence-unavailable"]);
   for (const record of result.excluded.practicalDominated)
@@ -324,7 +334,14 @@ function updateDisclosure(
   if (entries.length > 0) {
     const list = makeElement("ul", "cr-exclusion-list");
     for (const [record, reason] of entries)
-      list.append(renderExclusionItem(record, copy, reason));
+      list.append(
+        renderExclusionItem(
+          record,
+          copy,
+          reason,
+          result.diagnostics.shortWindowEnabled,
+        ),
+      );
     content.append(list);
   } else {
     content.append(
@@ -364,6 +381,16 @@ function updateDisclosure(
       ),
     );
   }
+  if (result.excluded.resourceShortWindowRisk.length > 0)
+    notes.append(
+      makeElement(
+        "p",
+        "cr-exclusion-note",
+        copy.shortWindowRiskNote(
+          result.excluded.resourceShortWindowRisk.length,
+        ),
+      ),
+    );
   if (result.excluded.belowIqFloor.length > 0)
     notes.append(
       makeElement(
@@ -392,35 +419,6 @@ function updateDisclosure(
     notes.append(makeElement("p", "cr-exclusion-note", copy.qualityDataNote));
   notes.hidden = notes.childElementCount === 0;
   disclosure.open = wasOpen;
-}
-
-function renderInactive(
-  state: RuntimeState,
-  copy: Copy,
-  mode: string,
-  strategies: any,
-  subscriptions: any,
-): void {
-  const root = getElement<HTMLElement>(state, SELECTORS.root);
-  const grid = getElement<HTMLElement>(state, SELECTORS.grid);
-  const shell = getElement<HTMLElement>(state, SELECTORS.gridShell);
-  const disclosure = getElement<HTMLDetailsElement>(
-    state,
-    SELECTORS.disclosure,
-  );
-  if (!root || !grid || !disclosure) return;
-  const modeName = copy.modeNames[mode] || mode || "the current ability page";
-  root.dataset.state = "inactive";
-  root.removeAttribute("aria-busy");
-  resetGridViewport(state.animations, state, shell);
-  disclosure.open = false;
-  grid.replaceChildren(
-    renderEmpty(copy.inactiveTitle, copy.inactiveDescription(modeName), copy),
-  );
-  disclosure.hidden = true;
-  syncControls(state, copy, strategies, subscriptions);
-  syncExpandControl(state, copy, { hasOverflow: false }, []);
-  announce(state, copy.announcedInactive(modeName));
 }
 
 function renderLoading(
@@ -488,7 +486,7 @@ function renderData(
   strategies: any,
   subscriptions: any,
   snapshot: RadarSnapshot,
-  calibrationStore: CalibrationStoreV1,
+  calibrationStore: CalibrationStoreV2,
   openDetail: (record: ScoredRecord) => void,
   setCurrentResult: (result: StrategyResult) => void,
 ): void {
@@ -496,8 +494,6 @@ function renderData(
   const grid = getElement<HTMLElement>(state, SELECTORS.grid);
   const shell = getElement<HTMLElement>(state, SELECTORS.gridShell);
   if (!root || !grid) return;
-  const animateCards = state.animateCardsOnNextRender;
-  state.animateCardsOnNextRender = true;
   const context = buildCalibrationSummary(
     calibrationStore,
     state.subscription as SubscriptionKey,
@@ -541,46 +537,70 @@ function renderData(
   root.removeAttribute("aria-busy");
   syncControls(state, copy, strategies, subscriptions);
   const strategy = strategies[strategyKey];
-  const children: HTMLElement[] = displayedGroups.map((group) =>
-    renderCard(
-      group.representative,
-      groupRanks.get(group.representative.key) || 0,
-      group,
-      strategy,
-      winners.get(group.representative.key) || [],
-      strategyDescription(copy, strategyKey),
-      copy,
-      context,
-      animateCards,
-      openDetail,
-    ),
-  );
-  if (currentResult.groups.length === 0) {
-    const noModels = snapshot.records
-      .filter(isValidRecord)
-      .every((record) => record.qualityIq < IQ_MINIMUM);
-    const quotaBlocked =
-      currentResult.excluded.quotaUnknown.length > 0 ||
-      currentResult.excluded.resourceWeekly.length > 0 ||
-      currentResult.excluded.resourceShortWindow.length > 0;
-    children.push(
-      renderEmpty(
-        noModels
-          ? copy.noModelsTitle
-          : quotaBlocked
-            ? copy.noQuotaModelsTitle
-            : copy.noValidTitle,
-        noModels
-          ? copy.noModelsDescription
-          : quotaBlocked
-            ? copy.noQuotaModelsDescription
-            : copy.noValidDescription,
+  const renderSignature = JSON.stringify({
+    strategyKey,
+    subscription: state.subscription,
+    fastEnabled: state.fastEnabled,
+    expanded: state.expanded,
+    groups: displayedGroups.map((group) => ({
+      key: group.representative.key,
+      mode: group.representative.mode,
+      iq: group.representative.qualityIq,
+      minutes: group.representative.effectiveMinutes,
+      weekly: group.representative.effectiveWeeklyShare,
+      short: group.representative.shortWindowEnduranceMinutes,
+      alternatives: group.alternatives.map((alternative) => alternative.key),
+      winners: winners.get(group.representative.key) || [],
+    })),
+    totalGroups: currentResult.groups.length,
+    fastCandidateCount: currentResult.fastCandidateCount,
+  });
+  const replaceGrid = shouldReplaceGrid(state.renderSignature, renderSignature);
+  if (replaceGrid) {
+    const animateCards = shouldAnimateCards(state.renderReason);
+    const children: HTMLElement[] = displayedGroups.map((group) =>
+      renderCard(
+        group.representative,
+        groupRanks.get(group.representative.key) || 0,
+        group,
+        strategy,
+        winners.get(group.representative.key) || [],
+        strategyDescription(copy, strategyKey),
         copy,
+        context,
+        animateCards,
+        openDetail,
       ),
     );
+    if (currentResult.groups.length === 0) {
+      const noModels = snapshot.records
+        .filter(isValidRecord)
+        .every((record) => record.qualityIq < IQ_MINIMUM);
+      const quotaBlocked =
+        currentResult.excluded.quotaUnknown.length > 0 ||
+        currentResult.excluded.resourceWeekly.length > 0 ||
+        currentResult.excluded.resourceShortWindow.length > 0 ||
+        currentResult.excluded.resourceShortWindowRisk.length > 0;
+      children.push(
+        renderEmpty(
+          noModels
+            ? copy.noModelsTitle
+            : quotaBlocked
+              ? copy.noQuotaModelsTitle
+              : copy.noValidTitle,
+          noModels
+            ? copy.noModelsDescription
+            : quotaBlocked
+              ? copy.noQuotaModelsDescription
+              : copy.noValidDescription,
+          copy,
+        ),
+      );
+    }
+    clearGridAnimation(state.animations);
+    grid.replaceChildren(...children);
+    state.renderSignature = renderSignature;
   }
-  clearGridAnimation(state.animations);
-  grid.replaceChildren(...children);
   const viewport =
     shell instanceof HTMLElement
       ? syncGridViewport(state.animations, state, grid, shell)
@@ -611,6 +631,7 @@ function renderData(
       currentResult.groups.length,
     ),
   );
+  state.renderReason = "incidental";
 }
 
 function getTheme(): string {
@@ -632,23 +653,16 @@ function render(
   subscriptions: any,
   controller: RuntimeController,
   openDetail: (record: ScoredRecord) => void,
-  scheduleRender: () => void,
+  scheduleRender: RenderCallback,
   radarState: RadarRuntimeState,
 ): void {
   state.renderQueued = false;
   const source = document.querySelector<HTMLElement>(SELECTORS.source);
-  if (!source || !state.shadow) return;
+  if (!state.shadow) return;
   state.hasRendered = true;
-  if (state.source !== source) observeSource(state, source, scheduleRender);
-  const mode = source.dataset.efficiencyMode;
-  if (mode !== TARGET_MODE) {
-    renderInactive(state, copy, mode || "", strategies, subscriptions);
-    return;
-  }
-  const sourceText = source.textContent || "";
-  const failed = SOURCE_STATUS_PATTERNS.failed.test(sourceText);
-  const loading = !failed && SOURCE_STATUS_PATTERNS.loading.test(sourceText);
-  if (!radarState.snapshot && (loading || !radarState.error)) {
+  if (source && state.source !== source)
+    observeSource(state, source, scheduleRender);
+  if (!radarState.snapshot && !radarState.error) {
     renderLoading(state, copy, strategies, subscriptions);
     return;
   }
@@ -658,7 +672,7 @@ function render(
       copy,
       strategies,
       subscriptions,
-      failed || radarState.error ? copy.errorLoading : copy.errorMissing,
+      copy.errorLoading,
       () => {
         radarState.error = null;
         loadRadarData(radarState, copy, scheduleRender);
@@ -681,9 +695,9 @@ function render(
 function queueRender(
   state: RuntimeState,
   callback: () => void,
-  animateCards = true,
+  reason: RenderReason = "incidental",
 ): void {
-  if (!animateCards) state.animateCardsOnNextRender = false;
+  state.renderReason = mergeRenderReason(state.renderReason, reason);
   if (state.renderQueued) return;
   state.renderQueued = true;
   window.clearTimeout(state.renderTimer);
@@ -693,31 +707,22 @@ function queueRender(
 function observeSource(
   state: RuntimeState,
   source: HTMLElement,
-  renderCallback: () => void,
+  renderCallback: RenderCallback,
 ): void {
   state.observers.source?.disconnect();
   state.source = source;
   state.observers.source = new MutationObserver(() => renderCallback());
   state.observers.source.observe(source, {
     attributes: true,
-    attributeFilter: [
-      "class",
-      "data-efficiency-mode",
-      "data-model",
-      "data-effort",
-      "style",
-      "aria-label",
-    ],
-    characterData: true,
-    childList: true,
-    subtree: true,
+    attributeFilter: ["data-efficiency-mode", "data-model", "data-effort"],
+    subtree: false,
   });
 }
 
 function observeFastSource(
   state: RuntimeState,
   source: HTMLElement,
-  renderCallback: () => void,
+  renderCallback: RenderCallback,
 ): void {
   state.observers.fast?.disconnect();
   state.fastSource = source;
@@ -725,13 +730,10 @@ function observeFastSource(
   state.observers.fast.observe(source, {
     attributes: true,
     attributeFilter: [
-      "class",
       "data-fast-run-id",
       "data-fast-current-effort",
       "data-fast-simple-effort",
     ],
-    characterData: true,
-    childList: true,
     subtree: true,
   });
 }
@@ -739,47 +741,45 @@ function observeFastSource(
 function loadRadarData(
   radarState: RadarRuntimeState,
   copy: Copy,
-  renderCallback: () => void,
+  renderCallback: RenderCallback,
 ): void {
   if (radarState.request) return;
   radarState.request = loadRadarSnapshot(
     copy,
     document.querySelector<HTMLElement>(SELECTORS.fastSource),
-    document.querySelector<HTMLElement>(SELECTORS.quotaSource),
   )
     .then((snapshot) => {
       radarState.snapshot = snapshot;
       radarState.error = null;
       radarState.request = null;
-      renderCallback();
+      renderCallback("data-refresh");
     })
     .catch((error: unknown) => {
       radarState.snapshot = null;
       radarState.error =
         error instanceof Error ? error : new Error(String(error));
       radarState.request = null;
-      renderCallback();
+      renderCallback("data-refresh");
     });
 }
 
-function openOriginalDetail(
-  state: RuntimeState,
-  copy: Copy,
-  record: ScoredRecord,
-  renderCallback: () => void,
-): void {
+function openOriginalDetail(record: ScoredRecord): void {
   const baseRecord = record.baseRecord || record;
   const source = document.querySelector<HTMLElement>(SELECTORS.source);
-  const original = source
-    ? Array.from(source.querySelectorAll<HTMLElement>(SELECTORS.card)).find(
-        (card) =>
-          card.dataset.model === baseRecord.model &&
-          card.dataset.effort === baseRecord.effort,
-      )
-    : null;
+  const original =
+    source?.dataset.efficiencyMode === DEEPSWE_MODE
+      ? Array.from(source.querySelectorAll<HTMLElement>(SELECTORS.card)).find(
+          (card) =>
+            card.dataset.model === baseRecord.model &&
+            card.dataset.effort === baseRecord.effort,
+        )
+      : null;
   if (!(original instanceof HTMLElement)) {
-    announce(state, copy.announcedOriginalChanged);
-    renderCallback();
+    window.open(
+      "https://deng.codexradar.com/?harness=codex#efficiency-charts",
+      "_blank",
+      "noopener,noreferrer",
+    );
     return;
   }
   const reducedMotion = window.matchMedia?.(
@@ -816,6 +816,8 @@ function releaseDetachedHost(state: RuntimeState): void {
   state.host = null;
   state.gridWidth = null;
   state.hasRendered = false;
+  state.renderSignature = null;
+  state.renderReason = "initial";
 }
 
 function numberField(form: HTMLFormElement, name: string): number | undefined {
@@ -1046,7 +1048,8 @@ function setupCalibration(
           mode: record.mode,
           benchmarkCostEquivalent: record.benchmarkCostEquivalent,
           benchmarkMinutes: record.benchmarkMinutes,
-          quotaBudget20x: record.quotaBudget20x || 0,
+          quotaWeight: record.quotaWeight || 0,
+          planCapacitySnapshot: planCapacity(plan),
           actualMinutes,
           weeklyBefore:
             weeklyBefore === undefined ? undefined : weeklyBefore / 100,
@@ -1081,8 +1084,8 @@ function mount(
   subscriptions: any,
   controller: RuntimeController,
   radarState: RadarRuntimeState,
-  renderCallback: () => void,
-  renderFastCallback: () => void,
+  renderCallback: RenderCallback,
+  renderFastCallback: RenderCallback,
 ): boolean {
   releaseDetachedHost(state);
   if (state.host || document.getElementById(HOST_ID)) return true;
@@ -1107,7 +1110,7 @@ function mount(
       const width = Math.round(entry.contentRect.width * 100) / 100;
       if (width === state.gridWidth) return;
       state.gridWidth = width;
-      if (state.hasRendered) renderCallback();
+      if (state.hasRendered) renderCallback("layout");
     });
     state.observers.gridResize.observe(grid);
   }
@@ -1155,7 +1158,7 @@ function mount(
       persistPreferences(state);
       setMenuOpen(false);
       trigger?.focus();
-      renderCallback();
+      renderCallback("selection");
     }),
   );
   shadow.addEventListener("click", (event) => {
@@ -1168,14 +1171,13 @@ function mount(
   fastToggle?.addEventListener("change", () => {
     state.fastEnabled = fastToggle.checked;
     persistPreferences(state);
-    renderCallback();
+    renderCallback("selection");
   });
   shadow
     .querySelector<HTMLButtonElement>(SELECTORS.expand)
     ?.addEventListener("click", () => {
-      state.animateCardsOnNextRender = false;
       state.expanded = !state.expanded;
-      renderCallback();
+      renderCallback("layout");
     });
   const disclosure = shadow.querySelector<HTMLDetailsElement>(
     SELECTORS.disclosure,
@@ -1224,7 +1226,7 @@ function mount(
     "resize",
     () => {
       positionInfoTooltip();
-      renderCallback();
+      renderCallback("layout");
     },
     { passive: true },
   );
@@ -1241,15 +1243,15 @@ function mount(
   });
   state.mediaQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
   state.mediaQuery?.addEventListener?.("change", () => syncTheme(state));
-  renderCallback();
+  renderCallback("initial");
   return true;
 }
 
 function observePage(
   state: RuntimeState,
   mountCallback: () => boolean,
-  renderCallback: () => void,
-  renderFastCallback: () => void,
+  renderCallback: RenderCallback,
+  renderFastCallback: RenderCallback,
 ): void {
   if (state.observers.page) return;
   state.observers.page = new MutationObserver(() => {
@@ -1257,14 +1259,14 @@ function observePage(
     const source = document.querySelector<HTMLElement>(SELECTORS.source);
     if (source && state.source !== source) {
       observeSource(state, source, renderCallback);
-      renderCallback();
+      renderCallback("data-refresh");
     }
     const fastSource = document.querySelector<HTMLElement>(
       SELECTORS.fastSource,
     );
     if (fastSource && state.fastSource !== fastSource) {
       observeFastSource(state, fastSource, renderFastCallback);
-      renderCallback();
+      renderCallback("data-refresh");
     }
   });
   state.observers.page.observe(document.documentElement, {
@@ -1291,7 +1293,7 @@ function start(): void {
   const copy = getCopy(getLocale());
   const strategies = createStrategyCatalog(copy);
   const subscriptions = createSubscriptionCatalog(copy);
-  let renderCallback: () => void;
+  let renderCallback: RenderCallback;
   const controller: RuntimeController = {
     getStore: () => calibrationStore,
     setStore: (store) => {
@@ -1302,22 +1304,26 @@ function start(): void {
     setResult: (result) => {
       latestResult = result;
     },
-    rerender: () => renderCallback(),
+    rerender: () => renderCallback("data-refresh"),
   };
-  renderCallback = () =>
-    queueRender(state, () =>
-      render(
-        state,
-        copy,
-        strategies,
-        subscriptions,
-        controller,
-        (record) => openOriginalDetail(state, copy, record, renderCallback),
-        renderCallback,
-        radarState,
-      ),
+  renderCallback = (reason = "incidental") =>
+    queueRender(
+      state,
+      () =>
+        render(
+          state,
+          copy,
+          strategies,
+          subscriptions,
+          controller,
+          openOriginalDetail,
+          renderCallback,
+          radarState,
+        ),
+      reason,
     );
-  const renderFastCallback = () => renderCallback();
+  const renderFastCallback: RenderCallback = (reason = "data-refresh") =>
+    renderCallback(reason);
   const mountCallback = () =>
     mount(
       state,

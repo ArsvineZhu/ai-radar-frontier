@@ -798,6 +798,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+.cr-early-badge {
+  padding: 2px 6px;
+  border: 1px solid var(--cr-border);
+  border-radius: 999px;
+  color: var(--cr-muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .cr-family {
   min-width: 0;
   overflow: hidden;

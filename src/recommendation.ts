@@ -35,6 +35,7 @@ interface StrategyExclusions {
   quotaUnknown: ScoredRecord[];
   resourceWeekly: ScoredRecord[];
   resourceShortWindow: ScoredRecord[];
+  resourceShortWindowRisk: ScoredRecord[];
   fastEvidenceUnavailable: ModelRecord[];
   practicalDominated: ScoredRecord[];
 }
@@ -186,6 +187,7 @@ export function buildStrategyResult(
   const quotaUnknown: ScoredRecord[] = [];
   const resourceWeekly: ScoredRecord[] = [];
   const resourceShortWindow: ScoredRecord[] = [];
+  const resourceShortWindowRisk: ScoredRecord[] = [];
 
   for (const record of evaluated) {
     const result = evaluateCandidateEligibility(record, context);
@@ -206,6 +208,9 @@ export function buildStrategyResult(
         break;
       case "resource-short-window":
         resourceShortWindow.push(marked);
+        break;
+      case "resource-short-window-risk":
+        resourceShortWindowRisk.push(marked);
         break;
       default:
         break;
@@ -252,6 +257,7 @@ export function buildStrategyResult(
       quotaUnknown,
       resourceWeekly,
       resourceShortWindow,
+      resourceShortWindowRisk,
       fastEvidenceUnavailable,
       practicalDominated,
     },

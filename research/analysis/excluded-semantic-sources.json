@@ -8,7 +8,7 @@
     {
       "source": "research/normalized/fast-runs.csv",
       "reason": "One row contains an HTML JavaScript template placeholder rather than a model/effort DOM measurement; it is excluded from Fast statistics as invalid parser output, not as an outlier.",
-      "rows_excluded": 1
+      "rows_excluded": 0
     }
   ]
 }

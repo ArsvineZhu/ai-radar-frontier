@@ -2,7 +2,7 @@
   "schema_version": 1,
   "type": "fast_radar_history",
   "timezone": "Asia/Shanghai",
-  "updated_at": "2026-09-14T09:26:28+08:00",
+  "updated_at": "2026-09-24T22:11:40+08:00",
   "runs": [
     {
       "run_id": "20260720-0850",
@@ -4602,6 +4602,233 @@
           }
         }
       }
+    },
+    {
+      "run_id": "20260921-1007-high",
+      "batch_run_id": "20260921-1007",
+      "measured_at": "2026-09-21T10:07:17+08:00",
+      "completed_at": "2026-09-21T10:19:24+08:00",
+      "cli_version": "0.155.0-alpha.9.2",
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "profile": "gpt-6-astra/high",
+      "valid_pairs": 3,
+      "sample_count": 6,
+      "tps_available": true,
+      "tps_unavailable_reason": null,
+      "models": {
+        "astra": {
+          "standard": {
+            "ttft_seconds": 7.133366444,
+            "tps": 33.1735754447021,
+            "e2e_seconds": 70.14190522166666
+          },
+          "fast": {
+            "ttft_seconds": 6.411442291666666,
+            "tps": 62.337153323162674,
+            "e2e_seconds": 39.72042193066666
+          }
+        }
+      }
+    },
+    {
+      "run_id": "20260921-1007-low",
+      "batch_run_id": "20260921-1007",
+      "measured_at": "2026-09-21T10:07:17+08:00",
+      "completed_at": "2026-09-21T10:16:53+08:00",
+      "cli_version": "0.155.0-alpha.9.2",
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "profile": "gpt-6-astra/low",
+      "valid_pairs": 3,
+      "sample_count": 6,
+      "tps_available": true,
+      "tps_unavailable_reason": null,
+      "models": {
+        "astra": {
+          "standard": {
+            "ttft_seconds": 6.131342069333333,
+            "tps": 33.16573579409609,
+            "e2e_seconds": 68.60229127766668
+          },
+          "fast": {
+            "ttft_seconds": 5.456548791333334,
+            "tps": 62.28707705123236,
+            "e2e_seconds": 38.72676715233333
+          }
+        }
+      }
+    },
+    {
+      "run_id": "20260921-1007-medium",
+      "batch_run_id": "20260921-1007",
+      "measured_at": "2026-09-21T10:07:17+08:00",
+      "completed_at": "2026-09-21T10:18:15+08:00",
+      "cli_version": "0.155.0-alpha.9.2",
+      "model": "gpt-6-astra",
+      "effort": "medium",
+      "profile": "gpt-6-astra/medium",
+      "valid_pairs": 3,
+      "sample_count": 6,
+      "tps_available": true,
+      "tps_unavailable_reason": null,
+      "models": {
+        "astra": {
+          "standard": {
+            "ttft_seconds": 6.507392111,
+            "tps": 33.23750260098914,
+            "e2e_seconds": 68.90947261099998
+          },
+          "fast": {
+            "ttft_seconds": 5.6217424309999995,
+            "tps": 62.20861880362012,
+            "e2e_seconds": 38.959205374999996
+          }
+        }
+      }
+    },
+    {
+      "run_id": "20260921-1007-max",
+      "batch_run_id": "20260921-1007",
+      "measured_at": "2026-09-21T10:09:40+08:00",
+      "completed_at": "2026-09-21T10:20:42+08:00",
+      "cli_version": "0.155.0-alpha.9.2",
+      "model": "gpt-6-astra",
+      "effort": "max",
+      "profile": "gpt-6-astra/max",
+      "valid_pairs": 3,
+      "sample_count": 6,
+      "tps_available": true,
+      "tps_unavailable_reason": null,
+      "models": {
+        "astra": {
+          "standard": {
+            "ttft_seconds": 11.372390666666666,
+            "tps": 33.2371416558911,
+            "e2e_seconds": 73.780238111
+          },
+          "fast": {
+            "ttft_seconds": 8.917276375,
+            "tps": 62.808527506892574,
+            "e2e_seconds": 41.978690291666666
+          }
+        }
+      }
+    },
+    {
+      "run_id": "20260921-1007-xhigh",
+      "batch_run_id": "20260921-1007",
+      "measured_at": "2026-09-21T10:09:40+08:00",
+      "completed_at": "2026-09-21T10:20:55+08:00",
+      "cli_version": "0.155.0-alpha.9.2",
+      "model": "gpt-6-astra",
+      "effort": "xhigh",
+      "profile": "gpt-6-astra/xhigh",
+      "valid_pairs": 3,
+      "sample_count": 6,
+      "tps_available": true,
+      "tps_unavailable_reason": null,
+      "models": {
+        "astra": {
+          "standard": {
+            "ttft_seconds": 8.944371208333333,
+            "tps": 33.22193905452613,
+            "e2e_seconds": 71.387936042
+          },
+          "fast": {
+            "ttft_seconds": 7.549368694333333,
+            "tps": 62.77250806311306,
+            "e2e_seconds": 40.575768194666665
+          }
+        }
+      }
+    },
+    {
+      "run_id": "20260924-0192-medium-astra-medium",
+      "batch_run_id": "20260924-0192-medium",
+      "measured_at": "2026-09-24T21:55:33+08:00",
+      "completed_at": "2026-09-24T22:02:39+08:00",
+      "cli_version": "codex-cli 0.155.0-alpha.16.3",
+      "model": "gpt-6-astra",
+      "effort": "medium",
+      "profile": "gpt-6-astra/medium",
+      "valid_pairs": 3,
+      "sample_count": 6,
+      "tps_available": true,
+      "tps_unavailable_reason": null,
+      "models": {
+        "astra": {
+          "standard": {
+            "ttft_seconds": 6.155445611333334,
+            "e2e_seconds": 69.14296531933333,
+            "tps": 32.90200560223129
+          },
+          "fast": {
+            "ttft_seconds": 6.66580218,
+            "e2e_seconds": 40.69160223566667,
+            "tps": 60.969346628458744
+          }
+        }
+      },
+      "metric_definition": "visible output tokens minus first token divided by interval from first to last visible delta"
+    },
+    {
+      "run_id": "20260924-0192-medium-sol-medium",
+      "batch_run_id": "20260924-0192-medium",
+      "measured_at": "2026-09-24T22:02:39+08:00",
+      "completed_at": "2026-09-24T22:07:04+08:00",
+      "cli_version": "codex-cli 0.155.0-alpha.16.3",
+      "model": "gpt-6-sol",
+      "effort": "medium",
+      "profile": "gpt-6-sol/medium",
+      "valid_pairs": 3,
+      "sample_count": 6,
+      "tps_available": true,
+      "tps_unavailable_reason": null,
+      "models": {
+        "sol": {
+          "standard": {
+            "ttft_seconds": 7.583580027666667,
+            "e2e_seconds": 44.96506268066666,
+            "tps": 55.460729199185636
+          },
+          "fast": {
+            "ttft_seconds": 5.265654722,
+            "e2e_seconds": 30.514590916666666,
+            "tps": 82.14880762882497
+          }
+        }
+      },
+      "metric_definition": "visible output tokens minus first token divided by interval from first to last visible delta"
+    },
+    {
+      "run_id": "20260924-0192-medium-luna-medium",
+      "batch_run_id": "20260924-0192-medium",
+      "measured_at": "2026-09-24T22:07:04+08:00",
+      "completed_at": "2026-09-24T22:11:40+08:00",
+      "cli_version": "codex-cli 0.155.0-alpha.16.3",
+      "model": "gpt-6-luna",
+      "effort": "medium",
+      "profile": "gpt-6-luna/medium",
+      "valid_pairs": 3,
+      "sample_count": 6,
+      "tps_available": true,
+      "tps_unavailable_reason": null,
+      "models": {
+        "luna": {
+          "standard": {
+            "ttft_seconds": 5.936617999999999,
+            "e2e_seconds": 43.520200361,
+            "tps": 55.15242927822109
+          },
+          "fast": {
+            "ttft_seconds": 5.700067027333334,
+            "e2e_seconds": 31.490656291333334,
+            "tps": 80.54555092006224
+          }
+        }
+      },
+      "metric_definition": "visible output tokens minus first token divided by interval from first to last visible delta"
     }
   ]
 }

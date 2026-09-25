@@ -8,6 +8,7 @@ import {
   SUPPORTED_MODEL_IDS,
 } from "./config.js";
 import type { Copy } from "./i18n.js";
+import { quotaEntry } from "./quota.js";
 import type { FastEvidenceLevel, ModelRecord } from "./scoring.js";
 
 interface RawObject {
@@ -114,6 +115,8 @@ function normalizePoint(point: unknown): {
   benchmarkCostEquivalent: number;
   benchmarkMinutes: number;
   sampleCount: number | null;
+  runs24h: number | null;
+  sourceUpdatedAt: string | null;
 } | null {
   const raw = asObject(point);
   if (!raw) return null;
@@ -126,6 +129,8 @@ function normalizePoint(point: unknown): {
     asNumber(raw.valid_tasks) ??
     asNumber(raw.total) ??
     asNumber(raw.runs_total);
+  const runs24h = asNumber(raw.runs_24h);
+  const sourceUpdatedAt = asString(raw.source_updated_at) || null;
   if (
     !model ||
     !effort ||
@@ -143,6 +148,8 @@ function normalizePoint(point: unknown): {
     benchmarkCostEquivalent,
     benchmarkMinutes,
     sampleCount,
+    runs24h,
+    sourceUpdatedAt,
   };
 }
 
@@ -213,7 +220,7 @@ function fallbackPairCount(
   return null;
 }
 
-function readFastMeasurements(
+export function readFastMeasurements(
   root: HTMLElement | null,
   payload: unknown,
 ): FastMeasurement[] {
@@ -433,28 +440,7 @@ export function createFastEstimator(
   };
 }
 
-function buildQuotaMap(root: HTMLElement | null): Map<string, number> {
-  const map = new Map<string, number>();
-  if (!root) return map;
-  const familySelectors = {
-    astra: ".quota-radar-current-card-astra",
-    sol: ".quota-radar-current-card-sol",
-    terra: ".quota-radar-current-card-terra",
-    luna: ".quota-radar-current-card-luna",
-  };
-  for (const [family, selector] of Object.entries(familySelectors)) {
-    const value = parseFirstNumber(
-      root.querySelector(`${selector} ${SELECTORS.quotaValue}`)?.textContent,
-    );
-    if (Number.isFinite(value) && value > 0) map.set(family, value);
-  }
-  return map;
-}
-
-function normalizeRecords(
-  efficiencyPayload: unknown,
-  quotaBudgets: Map<string, number>,
-): ModelRecord[] {
+export function normalizeRecords(efficiencyPayload: unknown): ModelRecord[] {
   const root = asObject(efficiencyPayload);
   const records: ModelRecord[] = [];
   for (const point of asArray(root?.points)) {
@@ -463,7 +449,7 @@ function normalizeRecords(
       continue;
     }
     const catalog = MODEL_CATALOG[normalized.model];
-    const quotaBudget20x = quotaBudgets.get(catalog.family) ?? null;
+    const reference = quotaEntry(normalized.model, normalized.effort);
     records.push({
       model: normalized.model,
       family: catalog.family,
@@ -474,8 +460,14 @@ function normalizeRecords(
       index: records.length,
       key: keyFor(normalized.model, normalized.effort),
       sampleCount: normalized.sampleCount,
-      quotaBudget20x,
-      quotaSource: quotaBudget20x === null ? "unavailable" : "family-radar",
+      runs24h: normalized.runs24h,
+      sourceUpdatedAt: normalized.sourceUpdatedAt,
+      quotaWeight: reference?.quotaWeight ?? null,
+      quotaValidTasks: reference?.validTasks ?? null,
+      quotaDiscriminationCoverage: reference?.discriminationCoverage ?? null,
+      quotaDiscriminationConfidence:
+        reference?.discriminationConfidence ?? null,
+      quotaSource: reference?.evidence ?? "unavailable",
       mode: "standard",
       benchmarkCostEquivalent: normalized.benchmarkCostEquivalent,
       benchmarkMinutes: normalized.benchmarkMinutes,
@@ -512,14 +504,12 @@ async function fetchEfficiency(): Promise<unknown> {
 export async function loadRadarSnapshot(
   copy: Copy,
   fastRoot: HTMLElement | null,
-  quotaRoot: HTMLElement | null,
 ): Promise<RadarSnapshot> {
   const efficiencyPayload = await fetchEfficiency();
   const [fastResult] = await Promise.allSettled([
     fetchJson(RADAR_ENDPOINTS.fastHistory),
   ]);
-  const quotaBudgets = buildQuotaMap(quotaRoot);
-  const records = normalizeRecords(efficiencyPayload, quotaBudgets);
+  const records = normalizeRecords(efficiencyPayload);
   if (records.length === 0) {
     throw new Error("Radar returned no supported DeepSWE model tiers");
   }

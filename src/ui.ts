@@ -2,6 +2,7 @@ import styles from "./styles.css?raw";
 import { IQ_REFERENCE } from "./config.js";
 import type { RuntimeState } from "./config.js";
 import type { CalibrationDerivedContext } from "./calibration.js";
+import { QUOTA_REFERENCE } from "./quota.js";
 import type { Copy } from "./i18n.js";
 import type {
   EligibilityExclusionReason,
@@ -280,8 +281,20 @@ function renderIqValue(value: number): HTMLElement {
   return iq;
 }
 
-function quotaValue(record: ScoredRecord, copy: Copy): string {
-  return copy.quotaValue(record.effectiveWeeklyShare);
+function quotaValue(
+  record: ScoredRecord,
+  copy: Copy,
+  calibration: CalibrationDerivedContext,
+): string {
+  const value = copy.taskQuotaValue(
+    calibration.shortWindowEnabled
+      ? record.effectiveShortWindowShare
+      : record.effectiveWeeklyShare,
+    calibration.shortWindowEnabled,
+  );
+  return record.quotaSource === "matrix-estimate"
+    ? `${copy.approximate} ${value}`
+    : value;
 }
 
 function timeValue(
@@ -342,7 +355,7 @@ export function renderCard(
     : "";
   const calibrated = calibration.workload.status !== "baseline";
   const timeText = timeValue(record, copy, calibrated);
-  const quotaText = quotaValue(record, copy);
+  const quotaText = quotaValue(record, copy, calibration);
   const enduranceText = enduranceValue(record, copy, calibration);
   button.setAttribute(
     "aria-label",
@@ -394,6 +407,18 @@ export function renderCard(
   meta.append(
     makeElement("span", "cr-rank", `#${String(rank).padStart(2, "0")}`),
   );
+  if (
+    record.sampleCount !== null &&
+    record.sampleCount < QUOTA_REFERENCE.taskCount
+  ) {
+    const early = makeElement(
+      "span",
+      "cr-early-badge",
+      copy.earlySamples(record.sampleCount),
+    );
+    early.title = copy.earlySamplesTitle(record.sampleCount);
+    meta.append(early);
+  }
   for (const winnerLabel of winnerLabels)
     meta.append(makeElement("span", "cr-badge", winnerLabel));
   head.append(model, meta);
@@ -404,8 +429,20 @@ export function renderCard(
     renderIqValue(record.qualityIq),
   );
   const foot = makeElement("div", "cr-card-foot");
-  const quotaMetric = renderMetric(copy.quota, quotaText);
-  quotaMetric.title = copy.quotaDataNote;
+  const quotaMetric = renderMetric(
+    calibration.shortWindowEnabled ? copy.quotaShortWindow : copy.quotaWeek,
+    quotaText,
+  );
+  const scaleTooltip = copy.quotaTooltip({
+    shortWindow: calibration.shortWindowEnabled,
+    shortShare: record.effectiveShortWindowShare,
+    weeklyShare: record.effectiveWeeklyShare,
+  });
+  const evidenceTooltip =
+    record.quotaSource === "matrix-estimate"
+      ? copy.quotaEstimateTitle(record.quotaValidTasks ?? 0)
+      : copy.quotaAnchorTitle;
+  quotaMetric.title = `${scaleTooltip} ${evidenceTooltip}`;
   foot.append(
     quotaMetric,
     renderMetric(
@@ -415,7 +452,9 @@ export function renderCard(
   );
   foot.append(
     renderMetric(
-      calibration.shortWindowEnabled ? copy.endurance : copy.weeklyEndurance,
+      calibration.shortWindowEnabled
+        ? copy.enduranceShortWindow
+        : copy.enduranceWeek,
       enduranceText,
     ),
   );
@@ -502,15 +541,27 @@ export function renderCard(
   return wrapper;
 }
 
-function recordDetails(record: ModelRecord | ScoredRecord, copy: Copy): string {
+function recordDetails(
+  record: ModelRecord | ScoredRecord,
+  copy: Copy,
+  shortWindowEnabled = false,
+): string {
   const scored = "effectiveWeeklyShare" in record;
   const quota = scored
-    ? copy.quotaValue(record.effectiveWeeklyShare)
+    ? copy.taskQuotaValue(
+        shortWindowEnabled
+          ? record.effectiveShortWindowShare
+          : record.effectiveWeeklyShare,
+        shortWindowEnabled,
+      )
     : copy.quotaUnavailableShort;
   const time = scored
     ? formatMinutes(record.effectiveMinutes, copy)
     : formatMinutes(record.benchmarkMinutes, copy);
-  return `IQ ${record.qualityIq} · benchmark equivalent ${formatBenchmarkCost(record.benchmarkCostEquivalent)} · ${time} · ${copy.quota} ${quota}`;
+  const quotaLabel = shortWindowEnabled
+    ? copy.quotaShortWindow
+    : copy.quotaWeek;
+  return `IQ ${record.qualityIq} · benchmark equivalent ${formatBenchmarkCost(record.benchmarkCostEquivalent)} · ${time} · ${quotaLabel} ${quota}`;
 }
 
 function exclusionReason(
@@ -527,6 +578,8 @@ function exclusionReason(
       return copy.weeklyResourceReason;
     case "resource-short-window":
       return copy.shortResourceReason;
+    case "resource-short-window-risk":
+      return copy.shortWindowRiskReason;
     case "practical-dominated":
       return copy.practicalReason;
     case "fast-evidence-unavailable":
@@ -540,13 +593,18 @@ export function renderExclusionItem(
   record: ModelRecord | ScoredRecord,
   copy: Copy,
   reason: EligibilityExclusionReason,
+  shortWindowEnabled = false,
 ): HTMLLIElement {
   const item = makeElement("li", "cr-exclusion-item");
   const modeLabel = record.mode === "fast" ? ` ${copy.fast}` : "";
   const details = makeElement("div");
   details.append(
     makeElement("div", "cr-exclusion-model", `${record.label}${modeLabel}`),
-    makeElement("div", "cr-exclusion-values", recordDetails(record, copy)),
+    makeElement(
+      "div",
+      "cr-exclusion-values",
+      recordDetails(record, copy, shortWindowEnabled),
+    ),
   );
   const witness = makeElement(
     "span",

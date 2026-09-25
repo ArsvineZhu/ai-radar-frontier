@@ -1,0 +1,675 @@
+{
+  "schemaVersion": 2,
+  "benchmarkId": "deep-swe",
+  "taskCount": 112,
+  "sourceUpdatedAt": "2026-09-25T04:31:10.075328+00:00",
+  "rollingWindow": 3,
+  "discriminationGeneratedAt": "2026-09-24T20:10:02+00:00",
+  "discriminationMethod": "task-discrimination-v2",
+  "sourceHashes": {
+    "table": "e1e80e0e35e0d8920968e34a73113271db13ef135fa0a2cb031b3df2429375d5",
+    "quotaPage": "47b3960075f15a62f77438cb0796ac2503a2220085846699dc24fbcce171c9b4"
+  },
+  "planCapacities": {
+    "plus": 82.486,
+    "pro5": 412.43,
+    "pro20": 1649.72
+  },
+  "globalCorrection": 0.6433397692124383,
+  "anchors20x": {
+    "gpt-6-astra": 1463,
+    "gpt-6-sol": 1232,
+    "gpt-5.6-sol": 1919.83,
+    "gpt-5.6-luna": 1145.1
+  },
+  "entries": {
+    "gpt-6-astra::low": {
+      "matrixMultiplier": 2,
+      "validTasks": 111,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.479018018018018,
+      "quotaWeight": 1.1276281613123718,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-astra::medium": {
+      "matrixMultiplier": 1.9937366991083025,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.1276281613123718,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-astra::high": {
+      "matrixMultiplier": 1.9662161605433535,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.1276281613123718,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-astra::xhigh": {
+      "matrixMultiplier": 1.9884251365565373,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.1276281613123718,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-astra::max": {
+      "matrixMultiplier": 1.9808946266340968,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.1276281613123718,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-astra::ultra": {
+      "matrixMultiplier": 1.996232248117898,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.1276281613123718,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-sol::low": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 0.8593052509857644,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-sol::medium": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 0.8593052509857644,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-sol::high": {
+      "matrixMultiplier": 1.994663372452131,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 0.8593052509857644,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-sol::xhigh": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 0.8593052509857644,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-sol::max": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 0.8593052509857644,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-sol::ultra": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 0.8593052509857644,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-terra::low": {
+      "matrixMultiplier": 1.9918224299065423,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.281418582368233,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-5.6-terra::medium": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.2866795384248766,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-5.6-terra::high": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.2866795384248766,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-5.6-terra::xhigh": {
+      "matrixMultiplier": 1.9953486080315348,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.2836871129893677,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-5.6-terra::max": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.2866795384248766,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-5.6-terra::ultra": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.2866795384248766,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-5.6-luna::low": {
+      "matrixMultiplier": 1.9448521602288131,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.4406776700724828,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-luna::medium": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.4406776700724828,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-luna::high": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.4406776700724828,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-luna::xhigh": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.4406776700724828,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.6-luna::max": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.4406776700724828,
+      "evidence": "measured-anchor"
+    },
+    "gpt-5.5::high": {
+      "matrixMultiplier": 1.987898568917901,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.2788942065453788,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-5.5::xhigh": {
+      "matrixMultiplier": 2,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.2866795384248766,
+      "evidence": "matrix-estimate"
+    },
+    "deepseek-v4-flash::max": {
+      "matrixMultiplier": 149.99999999999997,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 96.50096538186573,
+      "evidence": "matrix-estimate"
+    },
+    "deepseek-v4-flash::high": {
+      "matrixMultiplier": 150.00000000000003,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 96.50096538186577,
+      "evidence": "matrix-estimate"
+    },
+    "deepseek-v4.1-flash::max": {
+      "matrixMultiplier": 204.99449339207055,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 131.88111006867538,
+      "evidence": "matrix-estimate"
+    },
+    "deepseek-v4.1-flash::high": {
+      "matrixMultiplier": 198.41188524590166,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 127.64625646310316,
+      "evidence": "matrix-estimate"
+    },
+    "dsh-deepseek-v4-flash::max": {
+      "matrixMultiplier": 150.50335570469798,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 96.8247941247579,
+      "evidence": "matrix-estimate"
+    },
+    "dsh-deepseek-v4-flash::high": {
+      "matrixMultiplier": 149.9999999999999,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 96.50096538186567,
+      "evidence": "matrix-estimate"
+    },
+    "dsh-deepseek-v4.1-flash::max": {
+      "matrixMultiplier": 149.99999999999997,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 96.50096538186573,
+      "evidence": "matrix-estimate"
+    },
+    "dsh-deepseek-v4.1-flash::high": {
+      "matrixMultiplier": 149.99999999999994,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 96.50096538186571,
+      "evidence": "matrix-estimate"
+    },
+    "grok-4.6::high": {
+      "matrixMultiplier": 5.974450551458455,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.843601638946407,
+      "evidence": "matrix-estimate"
+    },
+    "grok-4.6::medium": {
+      "matrixMultiplier": 6.000000000000002,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.860038615274631,
+      "evidence": "matrix-estimate"
+    },
+    "grok-4.6::low": {
+      "matrixMultiplier": 6,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.8600386152746298,
+      "evidence": "matrix-estimate"
+    },
+    "grok-4.6::xhigh": {
+      "matrixMultiplier": 6.000000000000003,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.8600386152746315,
+      "evidence": "matrix-estimate"
+    },
+    "grok-4.7::high": {
+      "matrixMultiplier": 3.9828281454538312,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 2.5623117399090716,
+      "evidence": "matrix-estimate"
+    },
+    "grok-4.7::medium": {
+      "matrixMultiplier": 5.6694968475042185,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.64741279342401,
+      "evidence": "matrix-estimate"
+    },
+    "grok-4.7::low": {
+      "matrixMultiplier": 5.573424396374903,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.5856055648868033,
+      "evidence": "matrix-estimate"
+    },
+    "grok-4.7::xhigh": {
+      "matrixMultiplier": 5.650953513420899,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.6354831291544185,
+      "evidence": "matrix-estimate"
+    },
+    "k3::low": {
+      "matrixMultiplier": 13.695010221852051,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 8.810544715488282,
+      "evidence": "matrix-estimate"
+    },
+    "k3::high": {
+      "matrixMultiplier": 14.345629744987338,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 9.229114129347245,
+      "evidence": "matrix-estimate"
+    },
+    "k3::max": {
+      "matrixMultiplier": 14.377467316072794,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 9.249596504981646,
+      "evidence": "matrix-estimate"
+    },
+    "glm-5.3::low": {
+      "matrixMultiplier": 9.768664047151278,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 6.284570073608147,
+      "evidence": "matrix-estimate"
+    },
+    "glm-5.3::high": {
+      "matrixMultiplier": 9.84390946749115,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 6.332978444963893,
+      "evidence": "matrix-estimate"
+    },
+    "glm-5.3::max": {
+      "matrixMultiplier": 9.842703349282301,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 6.332202501153769,
+      "evidence": "matrix-estimate"
+    },
+    "dsh-deepseek-v4-flash-vision-exp::max": {
+      "matrixMultiplier": 150,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 96.50096538186574,
+      "evidence": "matrix-estimate"
+    },
+    "dsh-deepseek-v4-flash-vision-exp::high": {
+      "matrixMultiplier": 170.8215297450425,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 109.8962835226913,
+      "evidence": "matrix-estimate"
+    },
+    "gemini-3.7-flash::low": {
+      "matrixMultiplier": 5.873525089229475,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.778672275368357,
+      "evidence": "matrix-estimate"
+    },
+    "gemini-3.7-flash::medium": {
+      "matrixMultiplier": 5.922098429686817,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.80992143700806,
+      "evidence": "matrix-estimate"
+    },
+    "gemini-3.7-flash::high": {
+      "matrixMultiplier": 5.749626908506483,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 3.6989636483761856,
+      "evidence": "matrix-estimate"
+    },
+    "hy4-preview::max": {
+      "matrixMultiplier": 9.121809874066647,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 5.868423059181778,
+      "evidence": "matrix-estimate"
+    },
+    "hy4-preview::high": {
+      "matrixMultiplier": 12.111121866227867,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 7.791566346322751,
+      "evidence": "matrix-estimate"
+    },
+    "hy4-preview::low": {
+      "matrixMultiplier": 12.36901302840004,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 7.957477987076524,
+      "evidence": "matrix-estimate"
+    },
+    "claude-sonnet-5::low": {
+      "matrixMultiplier": 2.8400711259871345,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.827130702739473,
+      "evidence": "matrix-estimate"
+    },
+    "claude-sonnet-5::medium": {
+      "matrixMultiplier": 2.9588330856175022,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.9035349944392905,
+      "evidence": "matrix-estimate"
+    },
+    "claude-sonnet-5::high": {
+      "matrixMultiplier": 2.9801378192136196,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.9172411768341493,
+      "evidence": "matrix-estimate"
+    },
+    "claude-sonnet-5::xhigh": {
+      "matrixMultiplier": 2.927538217918264,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.883401761476129,
+      "evidence": "matrix-estimate"
+    },
+    "claude-sonnet-5::max": {
+      "matrixMultiplier": 2.992606025481636,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.925262469777108,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5::low": {
+      "matrixMultiplier": 2.9811694485527167,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.9179048650150767,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5::medium": {
+      "matrixMultiplier": 2.960960566891937,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.9049036877513892,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5::high": {
+      "matrixMultiplier": 2.9429618690997295,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.893324409667626,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5::xhigh": {
+      "matrixMultiplier": 2.682012576684761,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.7254453521092312,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5::max": {
+      "matrixMultiplier": 2.8690208061943774,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.8457551833227743,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5-5::low": {
+      "matrixMultiplier": 2.935512309114118,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.8885318114657486,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5-5::medium": {
+      "matrixMultiplier": 2.9914140671467355,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.9244956355770222,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5-5::high": {
+      "matrixMultiplier": 3.0000000000000004,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.930019307637315,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5-5::xhigh": {
+      "matrixMultiplier": 2.9833789390891514,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.9193263181468636,
+      "evidence": "matrix-estimate"
+    },
+    "claude-opus-5-5::max": {
+      "matrixMultiplier": 2.8761673470703566,
+      "validTasks": 112,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.47849107142857145,
+      "quotaWeight": 1.8503528372805942,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-6-sol::low": {
+      "matrixMultiplier": 1,
+      "validTasks": 18,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5514999999999999,
+      "quotaWeight": 1.3390584415584417,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-sol::medium": {
+      "matrixMultiplier": 1.21528123340001,
+      "validTasks": 50,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5262600000000002,
+      "quotaWeight": 1.3390584415584417,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-sol::high": {
+      "matrixMultiplier": 1.081486037406056,
+      "validTasks": 56,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.520660714285714,
+      "quotaWeight": 1.3390584415584417,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-sol::xhigh": {
+      "matrixMultiplier": 1.196235453495397,
+      "validTasks": 79,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5028481012658226,
+      "quotaWeight": 1.3390584415584417,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-sol::max": {
+      "matrixMultiplier": 1,
+      "validTasks": 34,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5019411764705882,
+      "quotaWeight": 1.3390584415584417,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-sol::ultra": {
+      "matrixMultiplier": 1.2308626205269049,
+      "validTasks": 30,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5748666666666667,
+      "quotaWeight": 1.3390584415584417,
+      "evidence": "measured-anchor"
+    },
+    "gpt-6-luna::low": {
+      "matrixMultiplier": 1.1552791562684008,
+      "validTasks": 49,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5388571428571428,
+      "quotaWeight": 0.7432370257696534,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-6-luna::medium": {
+      "matrixMultiplier": 1.376999129834669,
+      "validTasks": 21,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5590952380952382,
+      "quotaWeight": 0.8858783023935644,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-6-luna::high": {
+      "matrixMultiplier": 1.277292569286938,
+      "validTasks": 45,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5262888888888889,
+      "quotaWeight": 0.821733106741821,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-6-luna::xhigh": {
+      "matrixMultiplier": 1.3113022531121872,
+      "validTasks": 30,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.5321,
+      "quotaWeight": 0.8436128888849448,
+      "evidence": "matrix-estimate"
+    },
+    "gpt-6-luna::max": {
+      "matrixMultiplier": 1.1415546884568821,
+      "validTasks": 108,
+      "discriminationCoverage": 1,
+      "discriminationConfidence": 0.48125000000000007,
+      "quotaWeight": 0.7344075298152275,
+      "evidence": "matrix-estimate"
+    }
+  }
+}

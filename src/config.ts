@@ -1,4 +1,4 @@
-export const VERSION = "1.1.1";
+export const VERSION = "1.3.0";
 export const HOST_ID = "ai-radar-frontier-userscript";
 
 export const SELECTORS = Object.freeze({
@@ -6,8 +6,6 @@ export const SELECTORS = Object.freeze({
   card: "[data-efficiency-card]",
   fastSource: "#fast-radar",
   fastHistoryFallback: "[data-fast-radar-history-fallback]",
-  quotaSource: "#quota-radar",
-  quotaValue: "strong",
   header: ".shell > header",
   fallbackHeader: "header",
   cardIq: ".intelligence-efficiency-card-iq > strong",
@@ -40,7 +38,7 @@ export const SELECTORS = Object.freeze({
   panel: ".cr-panel",
 });
 
-export const TARGET_MODE = "comprehensive";
+export const DEEPSWE_MODE = "software";
 const DEFAULT_SUBSCRIPTION = "plus";
 export const DEFAULT_STRATEGY = "quality";
 const DEFAULT_FAST_ENABLED = true;
@@ -48,6 +46,7 @@ export const IQ_MINIMUM = 70;
 export const IQ_REFERENCE = 100;
 export const IQ_RESOLUTION = 4;
 export const WORKLOAD_ALPHA_PRIOR = 5;
+export const PLUS_SHORT_WINDOW_TASK_SHARE_LIMIT = 0.5;
 export const FAST_COST_MULTIPLIER = 2.5;
 export const FAST_MODEL_ID = "gpt-6-astra";
 export const PLAN_LIMITS = Object.freeze({
@@ -127,22 +126,36 @@ export const MODEL_CATALOG = Object.freeze({
     nominalFastSpeedup: 2,
     fastGroup: "gpt-6",
   }),
+  "gpt-6-sol": Object.freeze({
+    label: "GPT-6 Sol",
+    family: "sol",
+    generation: "gpt-6",
+    nominalFastSpeedup: 1.5,
+    fastGroup: null,
+  }),
+  "gpt-6-luna": Object.freeze({
+    label: "GPT-6 Luna",
+    family: "luna",
+    generation: "gpt-6",
+    nominalFastSpeedup: 1.5,
+    fastGroup: null,
+  }),
   "gpt-5.6-sol": Object.freeze({
-    label: "Sol",
+    label: "GPT-5.6 Sol",
     family: "sol",
     generation: "gpt-5.6",
     nominalFastSpeedup: 1.5,
     fastGroup: "gpt-5.6",
   }),
   "gpt-5.6-terra": Object.freeze({
-    label: "Terra",
+    label: "GPT-5.6 Terra",
     family: "terra",
     generation: "gpt-5.6",
     nominalFastSpeedup: 1.5,
     fastGroup: "gpt-5.6",
   }),
   "gpt-5.6-luna": Object.freeze({
-    label: "Luna",
+    label: "GPT-5.6 Luna",
     family: "luna",
     generation: "gpt-5.6",
     nominalFastSpeedup: 1.5,
@@ -167,12 +180,6 @@ export const STRATEGY_KEYS = Object.freeze([
   "speed",
 ]);
 export const SUBSCRIPTION_KEYS = Object.freeze(["plus", "pro5", "pro20"]);
-export const SOURCE_STATUS_PATTERNS = Object.freeze({
-  failed: /失败|错误|暂不可用|重试|unavailable|error|retry/i,
-  loading:
-    /正在读取|正在加载|读取效能数据|loading update time|loading performance data/i,
-});
-
 interface AnimationHandle {
   token: symbol;
   cleanup(): void;
@@ -211,7 +218,8 @@ export interface RuntimeState {
   sortStrategy: string;
   fastEnabled: boolean;
   expanded: boolean;
-  animateCardsOnNextRender: boolean;
+  renderReason: import("./render-policy.js").RenderReason;
+  renderSignature: string | null;
   menuOpen: boolean;
 }
 
@@ -241,7 +249,8 @@ export function createState(): RuntimeState {
     sortStrategy: DEFAULT_STRATEGY,
     fastEnabled: DEFAULT_FAST_ENABLED,
     expanded: false,
-    animateCardsOnNextRender: true,
+    renderReason: "initial",
+    renderSignature: null,
     menuOpen: false,
   };
 }

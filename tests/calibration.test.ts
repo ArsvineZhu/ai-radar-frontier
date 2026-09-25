@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { QUOTA_REFERENCE } from "../src/quota.js";
 import {
   buildCalibrationSummary,
   createEmptyCalibrationStore,
@@ -7,6 +8,7 @@ import {
   createWorkloadObservation,
   estimateKappa,
   estimateWorkload,
+  migrateCalibrationV1,
 } from "../src/calibration.js";
 import {
   clearCalibration,
@@ -36,7 +38,8 @@ function workload(overrides: Record<string, unknown> = {}) {
       mode: "standard",
       benchmarkCostEquivalent: 1,
       benchmarkMinutes: 10,
-      quotaBudget20x: 100,
+      quotaWeight: QUOTA_REFERENCE.planCapacities.pro20 / 100,
+      planCapacitySnapshot: QUOTA_REFERENCE.planCapacities.pro20,
       actualMinutes: 20,
       representativeTask: true,
       id: "workload-test",
@@ -162,7 +165,7 @@ test("corrupt local storage is safe and calibration reset preserves preferences"
   const previous = (globalThis as Record<string, unknown>).window;
   (globalThis as Record<string, unknown>).window = { localStorage };
   try {
-    values.set("ai-radar-frontier-userscript:quota-calibration:v1", "not-json");
+    values.set("ai-radar-frontier-userscript:quota-calibration:v2", "not-json");
     assert.deepEqual(loadCalibrationStore(), createEmptyCalibrationStore());
     savePreferences({ subscription: "pro5", fastEnabled: false });
     clearCalibration();
@@ -172,4 +175,103 @@ test("corrupt local storage is safe and calibration reset preserves preferences"
       delete (globalThis as Record<string, unknown>).window;
     else (globalThis as Record<string, unknown>).window = previous;
   }
+});
+
+test("storage upgrades v1 raw observations once and removes the old key after verification", () => {
+  const values = new Map<string, string>();
+  const localStorage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+    clear: () => values.clear(),
+    key: (_index: number) => null,
+    length: 0,
+  } as Storage;
+  const previous = (globalThis as Record<string, unknown>).window;
+  (globalThis as Record<string, unknown>).window = { localStorage };
+  try {
+    values.set(
+      "ai-radar-frontier-userscript:quota-calibration:v1",
+      JSON.stringify({
+        schemaVersion: 1,
+        shortWindowObservations: [],
+        workloadObservations: [
+          {
+            plan: "pro20",
+            model: "gpt-6-astra",
+            family: "astra",
+            effort: "medium",
+            mode: "standard",
+            benchmarkCostEquivalent: 1,
+            benchmarkMinutes: 10,
+            quotaBudget20x: 1847,
+            actualMinutes: 20,
+            weeklyUsage: 0.01,
+            representativeTask: true,
+            id: "legacy-entry",
+            recordedAt: "2026-09-20T10:00:00.000Z",
+            alphaObservation: 1,
+            betaObservation: 2,
+            status: "accepted",
+          },
+        ],
+      }),
+    );
+    const upgraded = loadCalibrationStore();
+    assert.equal(upgraded.schemaVersion, 2);
+    assert.equal(upgraded.workloadObservations[0].id, "legacy-entry");
+    assert.ok(upgraded.workloadObservations[0].alphaObservation !== 1);
+    assert.equal(
+      values.has("ai-radar-frontier-userscript:quota-calibration:v1"),
+      false,
+    );
+    assert.equal(
+      JSON.parse(
+        values.get("ai-radar-frontier-userscript:quota-calibration:v2") ?? "{}",
+      ).schemaVersion,
+      2,
+    );
+  } finally {
+    if (previous === undefined)
+      delete (globalThis as Record<string, unknown>).window;
+    else (globalThis as Record<string, unknown>).window = previous;
+  }
+});
+
+test("v1 calibration observations are recomputed against the unified quota scale", () => {
+  const legacy = {
+    schemaVersion: 1,
+    shortWindowObservations: [
+      short({ id: "old-window", fullWindows: 3, weeklyAfter: 0.55 }),
+    ],
+    workloadObservations: [
+      {
+        plan: "pro20",
+        model: "gpt-6-astra",
+        family: "astra",
+        effort: "medium",
+        mode: "standard",
+        benchmarkCostEquivalent: 1,
+        benchmarkMinutes: 10,
+        quotaBudget20x: 1847,
+        actualMinutes: 20,
+        weeklyUsage: 0.01,
+        representativeTask: true,
+        id: "old-workload",
+        recordedAt: "2026-09-20T10:00:00.000Z",
+        alphaObservation: 1,
+        betaObservation: 2,
+        status: "accepted",
+      },
+    ],
+  };
+  const migrated = migrateCalibrationV1(legacy);
+  assert.ok(migrated);
+  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.shortWindowObservations[0].id, "old-window");
+  const migratedWorkload = migrated.workloadObservations[0];
+  assert.equal(migratedWorkload.id, "old-workload");
+  assert.equal(migratedWorkload.betaObservation, 2);
+  assert.ok(migratedWorkload.quotaWeight > 0);
+  assert.notEqual(migratedWorkload.alphaObservation, 1);
 });

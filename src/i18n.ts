@@ -36,7 +36,7 @@ const TRANSLATIONS = freezeRecord({
     title: "Efficiency Frontier",
     infoAria: "Frontier model explanation",
     frontierExplanation:
-      "Uses current public DeepSWE software-engineering measurements, plan family capacity, and optional local workload calibration. Standard and Fast remain separate choices.",
+      "Uses current public DeepSWE measurements, one plan-wide quota scale, and optional local workload calibration. Standard and Fast remain separate choices.",
     sort: "Strategy",
     subscription: "Subscription",
     sorting: "Sorting",
@@ -47,7 +47,13 @@ const TRANSLATIONS = freezeRecord({
     details: "Details",
     notes: "Notes",
     loading: "Loading DeepSWE software-engineering data…",
-    originalDetails: "Open original details",
+    originalDetails: "Open Radar data",
+    earlySamples: (count: number) => `Early · n=${count}`,
+    earlySamplesTitle: (count: number) =>
+      `DeepSWE currently has ${count} observations for this tier; IQ may change as more tasks are measured.`,
+    quotaEstimateTitle: (count: number) =>
+      `Estimated from ${count} public DeepSWE task prices and quota multipliers.`,
+    quotaAnchorTitle: "Calibrated with this model's public 20x quota capacity.",
     fast: "Fast",
     fastInclude: "Include Fast",
     fastExclude: "Exclude Fast",
@@ -62,8 +68,12 @@ const TRANSLATIONS = freezeRecord({
     calibrated: "Typical task",
     quality: "Quality",
     quota: "Weekly burden",
+    quotaShortWindow: "Per task / 5h",
+    quotaWeek: "Per task / week",
     endurance: "5h endurance",
     weeklyEndurance: "Weekly endurance",
+    enduranceShortWindow: "Endurance / 5h",
+    enduranceWeek: "Endurance / week",
     time: "Task time",
     cardTime: "Time",
     calibratedCardTime: "Typical time",
@@ -72,9 +82,6 @@ const TRANSLATIONS = freezeRecord({
     week: "wk",
     approximate: "≈",
     quotaUnavailableShort: "Unavailable",
-    inactiveTitle: "Different ability view",
-    inactiveDescription: (modeName: string) =>
-      `This panel uses DeepSWE software-engineering data; ${modeName} is shown by the original page.`,
     strategies: {
       quality: { label: "Quality", winnerLabel: "Preferred" },
       effectiveness: { label: "Effectiveness", winnerLabel: "Effectiveness" },
@@ -93,15 +100,9 @@ const TRANSLATIONS = freezeRecord({
     },
     subscriptions: { plus: "Plus", pro5: "Pro 5x", pro20: "Pro 20x" },
     subscriptionMultipliers: { plus: "1×", pro5: "5×", pro20: "20×" },
-    modeNames: {
-      software: "Software Engineering Ability",
-      visual: "Visual-Spatial Reasoning",
-    },
     errorTitle: "Unable to read DeepSWE software-engineering data",
-    errorLoading:
-      "The radar reported a loading problem. Refresh the original source and try again.",
-    errorMissing: "The radar has not provided usable DeepSWE model data yet.",
-    refresh: "Refresh source",
+    errorLoading: "Could not load public DeepSWE data. Try again in a moment.",
+    refresh: "Retry",
     noModelsTitle: `No model meets IQ ${IQ_MINIMUM}`,
     noModelsDescription: `Current models below IQ ${IQ_MINIMUM} are retained in the details; no automatic recommendation is possible.`,
     noValidTitle: "No valid models to display",
@@ -109,7 +110,7 @@ const TRANSLATIONS = freezeRecord({
       "The current source did not provide all required comparable measurements.",
     noQuotaModelsTitle: "No complete automatic recommendation",
     noQuotaModelsDescription:
-      "A current family quota capacity is required for automatic scoring; unavailable candidates remain in details.",
+      "A usable public task multiplier is required for quota scoring; unavailable candidates remain in details.",
     noDominatedTitle: "No excluded practical duplicate",
     noDominatedDescription:
       "Pareto is diagnostic only. Practical compression is applied after ranking.",
@@ -128,7 +129,7 @@ const TRANSLATIONS = freezeRecord({
     practicalNote: (count: number) =>
       `${count} ranked candidate${count === 1 ? "" : "s"} were practically dominated by an earlier, materially comparable choice.`,
     quotaDataNote:
-      "Weekly burden is a family-capacity share. API-equivalent benchmark cost is an input, not a user bill.",
+      "The card uses the active 5h window scale for Plus and the weekly scale for Pro. Hover shows the other scale; both use one public plan-capacity formula.",
     qualityDataNote:
       "Quality uses current DeepSWE software-engineering IQ. DeepSWE is a calibration workload, not a claim about the exact user's task.",
     calibrationNote:
@@ -137,6 +138,20 @@ const TRANSLATIONS = freezeRecord({
     calibratedLabel: (value: string) => `Typical-task ${value}`,
     quotaValue: (value: number | null) =>
       value === null ? "Unavailable" : `${percent(value)} / week`,
+    taskQuotaValue: (value: number | null, _shortWindow: boolean) =>
+      value === null ? "Unavailable" : percent(value),
+    quotaTooltip: ({
+      shortWindow,
+      shortShare,
+      weeklyShare,
+    }: {
+      shortWindow: boolean;
+      shortShare: number | null;
+      weeklyShare: number | null;
+    }) =>
+      shortWindow
+        ? `5h window: one typical task uses ${percent(shortShare)} of the active window. 7-day quota: ${percent(weeklyShare)} of weekly capacity.`
+        : `7-day quota: one typical task uses ${percent(weeklyShare)} of weekly capacity.`,
     enduranceValue: (value: number | null, hours: number) =>
       value === null
         ? "Unavailable"
@@ -149,17 +164,21 @@ const TRANSLATIONS = freezeRecord({
         : value >= 60
           ? `${(value / 60).toFixed(1)}h`
           : `${value.toFixed(1)} min`,
-    quotaReason: "Current family quota capacity is unavailable.",
+    quotaReason: "No usable public task multiplier for this model tier.",
     weeklyResourceReason:
       "Calibrated typical-task share reaches the weekly capacity.",
     shortResourceReason:
       "Calibrated typical-task share reaches the active short-window capacity.",
+    shortWindowRiskReason:
+      "Plus 5h safety gate: one typical task would use more than half of the active 5h window.",
+    shortWindowRiskNote: (count: number) =>
+      `${count} candidates exceed the Plus 5h safety gate and were withheld from automatic recommendation.`,
     practicalReason:
       "A higher-ranked choice is within the decision tolerances and materially lighter or faster.",
     dominatedBy: (name: string) => `Dominated by ${name}`,
     switchTo: "Open this alternative",
     fastReason:
-      "Fast evidence was not sufficient to create a separate candidate.",
+      "Fast was not generated: this model × effort lacks measured E2E evidence, and fresh same-model evidence is below three observations. A 1.5× nominal speedup is only an upper bound, not measured evidence.",
     alternativesTitle: (count: number) =>
       `${count} similar alternative${count === 1 ? "" : "s"}; open details to compare deltas`,
     fastBadgeTitle: ({ source, multiplier, sampleCount, ageDays }: any) =>
@@ -174,8 +193,6 @@ const TRANSLATIONS = freezeRecord({
       groups: number,
     ) =>
       `${count} scoreable candidates, ${groups} meaningful groups, sorted by ${strategy}; ${candidates} Fast candidates evaluated.`,
-    announcedInactive: (modeName: string) =>
-      `Now on ${modeName}; the panel remains scoped to DeepSWE software engineering.`,
     announcedOriginalChanged:
       "The original data changed. Try again in a moment.",
     cardAria: ({
@@ -248,7 +265,7 @@ const TRANSLATIONS = freezeRecord({
     title: "效率前沿",
     infoAria: "前沿模型说明",
     frontierExplanation:
-      "使用当前公开 DeepSWE 软件工程测量、套餐模型族容量和可选的本地工作负载校准；Standard 与 Fast 始终是独立选择。",
+      "使用当前 DeepSWE 软件工程数据、统一的套餐额度尺度和可选的本地校准；Standard 与 Fast 始终是独立选择。",
     sort: "策略",
     subscription: "订阅",
     sorting: "排序",
@@ -259,7 +276,13 @@ const TRANSLATIONS = freezeRecord({
     details: "说明",
     notes: "说明",
     loading: "正在读取 DeepSWE 软件工程数据…",
-    originalDetails: "打开原站详情",
+    originalDetails: "打开雷达数据",
+    earlySamples: (count: number) => `早期 · ${count} 次`,
+    earlySamplesTitle: (count: number) =>
+      `该档 DeepSWE 当前有 ${count} 次观察；随着任务覆盖增加，IQ 可能变化。`,
+    quotaEstimateTitle: (count: number) =>
+      `根据 ${count} 道公开 DeepSWE 任务的费用和额度倍率估算。`,
+    quotaAnchorTitle: "使用该型号公开的 20x 额度容量校准。",
     fast: "Fast",
     fastInclude: "包含 Fast",
     fastExclude: "排除 Fast",
@@ -272,8 +295,12 @@ const TRANSLATIONS = freezeRecord({
     calibrated: "典型任务",
     quality: "质量",
     quota: "周额度负担",
+    quotaShortWindow: "每任务 / 5h",
+    quotaWeek: "每任务 / 周",
     endurance: "5h 耐力",
     weeklyEndurance: "周耐力",
+    enduranceShortWindow: "耐力时长 / 5h",
+    enduranceWeek: "耐力时长 / 周",
     time: "任务耗时",
     cardTime: "耗时",
     calibratedCardTime: "典型耗时",
@@ -282,9 +309,6 @@ const TRANSLATIONS = freezeRecord({
     week: "周",
     approximate: "≈",
     quotaUnavailableShort: "不可用",
-    inactiveTitle: "当前不是软件工程能力页",
-    inactiveDescription: (modeName: string) =>
-      `此面板使用 DeepSWE 软件工程数据；当前页面由原站显示${modeName}。`,
     strategies: {
       quality: { label: "质量", winnerLabel: "首选" },
       effectiveness: { label: "综合成效", winnerLabel: "成效" },
@@ -299,18 +323,16 @@ const TRANSLATIONS = freezeRecord({
     },
     subscriptions: { plus: "Plus", pro5: "Pro 5x", pro20: "Pro 20x" },
     subscriptionMultipliers: { plus: "1×", pro5: "5×", pro20: "20×" },
-    modeNames: { software: "软件工程能力", visual: "视觉空间推理" },
     errorTitle: "暂时无法读取 DeepSWE 软件工程数据",
-    errorLoading: "原站报告了加载问题，可以刷新原站后重试。",
-    errorMissing: "原站尚未提供可用的 DeepSWE 模型数据。",
-    refresh: "刷新原站数据",
+    errorLoading: "无法读取公开 DeepSWE 数据，请稍后重试。",
+    refresh: "重试",
     noModelsTitle: `没有达到 IQ ${IQ_MINIMUM}`,
     noModelsDescription: `当前低于 IQ ${IQ_MINIMUM} 的模型仍保留在说明中，无法自动推荐。`,
     noValidTitle: "暂时没有可展示的有效模型",
     noValidDescription: "当前原站没有提供完整的可比较测量值。",
     noQuotaModelsTitle: "没有完整的自动推荐",
     noQuotaModelsDescription:
-      "自动评分需要当前模型族额度容量；不可用的候选仍保留在说明中。",
+      "自动评分需要可用的公开任务额度倍率；缺数据的候选仍保留在说明中。",
     noDominatedTitle: "没有被移出的实用重复项",
     noDominatedDescription: "Pareto 只作诊断；实用压缩在排序之后进行。",
     excluded: (count: number) => `已移出主推荐 ${count} 个候选`,
@@ -325,7 +347,7 @@ const TRANSLATIONS = freezeRecord({
     practicalNote: (count: number) =>
       `${count} 个已排序候选被更早且在决策容差内更轻/更快的选择实用支配。`,
     quotaDataNote:
-      "周额度负担是模型族容量占比；基准等价费用只是输入，不是用户账单。",
+      "Plus 主卡使用当前 5h 窗口尺度，Pro 使用周额度尺度；hover 会补充另一种尺度。两者都按统一套餐容量公式计算，基准等价费用不是用户账单。",
     qualityDataNote:
       "质量使用当前 DeepSWE 软件工程 IQ。DeepSWE 是校准工作负载，不等于用户的具体任务。",
     calibrationNote: "校准只保存在本浏览器中，不会上传。",
@@ -333,6 +355,20 @@ const TRANSLATIONS = freezeRecord({
     calibratedLabel: (value: string) => `典型任务${value}`,
     quotaValue: (value: number | null) =>
       value === null ? "不可用" : `${percent(value)} / 周`,
+    taskQuotaValue: (value: number | null, _shortWindow: boolean) =>
+      value === null ? "不可用" : percent(value),
+    quotaTooltip: ({
+      shortWindow,
+      shortShare,
+      weeklyShare,
+    }: {
+      shortWindow: boolean;
+      shortShare: number | null;
+      weeklyShare: number | null;
+    }) =>
+      shortWindow
+        ? `5h 窗口：一个典型任务约占当前窗口 ${percent(shortShare)}；7 天额度：约占周额度 ${percent(weeklyShare)}。`
+        : `7 天额度：一个典型任务约占周额度 ${percent(weeklyShare)}。`,
     enduranceValue: (value: number | null, hours: number) =>
       value === null
         ? "不可用"
@@ -345,13 +381,18 @@ const TRANSLATIONS = freezeRecord({
         : value >= 60
           ? `${(value / 60).toFixed(1)} 小时`
           : `${value.toFixed(1)} 分钟`,
-    quotaReason: "当前模型族额度容量不可用。",
+    quotaReason: "该模型档位缺少可用的公开任务额度倍率。",
     weeklyResourceReason: "已校准的典型任务周额度占比达到周容量。",
     shortResourceReason: "已校准的典型任务周额度占比达到当前短窗口容量。",
+    shortWindowRiskReason:
+      "Plus 5h 安全门槛：一个典型任务预计会消耗当前 5h 窗口的一半以上。",
+    shortWindowRiskNote: (count: number) =>
+      `${count} 个候选超过 Plus 5h 安全门槛，因此不自动推荐。`,
     practicalReason: "更高排序的选择在决策容差内，同时有明显更轻或更快的优势。",
     dominatedBy: (name: string) => `被 ${name} 覆盖`,
     switchTo: "打开这个替代项",
-    fastReason: "Fast 证据不足，未生成独立候选。",
+    fastReason:
+      "未生成 Fast：该模型档位缺少实测 E2E，且新鲜的同模型证据不足 3 条。1.5 倍 nominal 只是上限假设，不是实测证据。",
     alternativesTitle: (count: number) =>
       `${count} 个相近替代项；打开说明比较真实差异`,
     fastBadgeTitle: ({ source, multiplier, sampleCount, ageDays }: any) =>
@@ -366,8 +407,6 @@ const TRANSLATIONS = freezeRecord({
       groups: number,
     ) =>
       `${count} 个可评分候选，${groups} 个有意义的推荐组，当前排序：${strategy}；已评估 ${candidates} 个 Fast 候选。`,
-    announcedInactive: (modeName: string) =>
-      `当前已切换到${modeName}，面板仍限定为 DeepSWE 软件工程能力。`,
     announcedOriginalChanged: "原站数据刚刚更新，请稍候重试。",
     cardAria: ({
       rankLabel,
