@@ -1,4 +1,4 @@
-export const VERSION = "1.3.0";
+export const VERSION = "1.4.0";
 export const HOST_ID = "ai-radar-frontier-userscript";
 
 export const SELECTORS = Object.freeze({
@@ -38,11 +38,10 @@ export const SELECTORS = Object.freeze({
   panel: ".cr-panel",
 });
 
-export const DEEPSWE_MODE = "software";
 const DEFAULT_SUBSCRIPTION = "plus";
 export const DEFAULT_STRATEGY = "quality";
 const DEFAULT_FAST_ENABLED = true;
-export const IQ_MINIMUM = 70;
+export const IQ_MINIMUM = 50;
 export const IQ_REFERENCE = 100;
 export const IQ_RESOLUTION = 4;
 export const WORKLOAD_ALPHA_PRIOR = 5;
@@ -59,7 +58,7 @@ export const PLAN_LIMITS = Object.freeze({
       ratioPriorExposure: 1,
     }),
   }),
-  pro5: Object.freeze({
+  pro100: Object.freeze({
     multiplier: 5,
     shortWindow: Object.freeze({
       enabled: false,
@@ -68,8 +67,17 @@ export const PLAN_LIMITS = Object.freeze({
       ratioPriorExposure: 1,
     }),
   }),
-  pro20: Object.freeze({
-    multiplier: 20,
+  pro200: Object.freeze({
+    multiplier: 10,
+    shortWindow: Object.freeze({
+      enabled: false,
+      hours: 5,
+      ratioPrior: 0.155,
+      ratioPriorExposure: 1,
+    }),
+  }),
+  pro500: Object.freeze({
+    multiplier: 25,
     shortWindow: Object.freeze({
       enabled: false,
       hours: 5,
@@ -79,8 +87,8 @@ export const PLAN_LIMITS = Object.freeze({
   }),
 });
 export const RADAR_ENDPOINTS = Object.freeze({
-  efficiency:
-    "https://api.codexradar.com/api/v1/intelligence-efficiency?benchmark=deep-swe",
+  binding: "/data/radar-bench-binding.json",
+  score: "/api/radar-bench-score",
   fastHistory: "/data/fast-radar-history.json",
 });
 export const FAST_MEASUREMENT_MAX_AGE_DAYS = 30;
@@ -125,6 +133,13 @@ export const MODEL_CATALOG = Object.freeze({
     generation: "gpt-6",
     nominalFastSpeedup: 2,
     fastGroup: "gpt-6",
+  }),
+  "gpt-6.1-sol": Object.freeze({
+    label: "GPT-6.1 Sol",
+    family: "sol",
+    generation: "gpt-6.1",
+    nominalFastSpeedup: 1.5,
+    fastGroup: null,
   }),
   "gpt-6-sol": Object.freeze({
     label: "GPT-6 Sol",
@@ -179,7 +194,12 @@ export const STRATEGY_KEYS = Object.freeze([
   "budget",
   "speed",
 ]);
-export const SUBSCRIPTION_KEYS = Object.freeze(["plus", "pro5", "pro20"]);
+export const SUBSCRIPTION_KEYS = Object.freeze([
+  "plus",
+  "pro100",
+  "pro200",
+  "pro500",
+]);
 interface AnimationHandle {
   token: symbol;
   cleanup(): void;

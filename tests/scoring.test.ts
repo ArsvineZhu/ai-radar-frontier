@@ -27,7 +27,7 @@ function record(overrides: Partial<ModelRecord> = {}): ModelRecord {
     index: 0,
     key: "gpt-6-astra::medium",
     sampleCount: 100,
-    quotaWeight: QUOTA_REFERENCE.planCapacities.pro20 / 100,
+    quotaWeight: QUOTA_REFERENCE.planCapacities.pro200 / 100,
     quotaValidTasks: 112,
     quotaSource: "measured-anchor",
     mode: "standard",
@@ -36,7 +36,7 @@ function record(overrides: Partial<ModelRecord> = {}): ModelRecord {
 }
 
 function context(
-  plan: "plus" | "pro5" | "pro20" = "plus",
+  plan: "plus" | "pro100" | "pro200" = "plus",
   overrides: Partial<CalibrationDerivedContext> = {},
 ): CalibrationDerivedContext {
   const base = createDefaultCalibrationContext(plan);
@@ -48,20 +48,20 @@ function context(
   };
 }
 
-test("one quota weight scales across 1x, 5x, and 20x plan capacities", () => {
+test("one quota weight scales across 1x, 5x, and 10x estimated plan capacities", () => {
   const candidate = record({ benchmarkCostEquivalent: 1 });
   const plus = evaluateRecords([candidate], "plus")[0];
-  const pro5 = evaluateRecords([candidate], "pro5")[0];
-  const pro20 = evaluateRecords([candidate], "pro20")[0];
+  const pro5 = evaluateRecords([candidate], "pro100")[0];
+  const pro20 = evaluateRecords([candidate], "pro200")[0];
   assert.equal(PLAN_LIMITS.plus.multiplier, 1);
-  assert.equal(PLAN_LIMITS.pro5.multiplier, 5);
-  assert.equal(PLAN_LIMITS.pro20.multiplier, 20);
+  assert.equal(PLAN_LIMITS.pro100.multiplier, 5);
+  assert.equal(PLAN_LIMITS.pro200.multiplier, 10);
   assert.ok(
     Math.abs(plus.effectiveWeeklyShare! - 5 * pro5.effectiveWeeklyShare!) <
       1e-12,
   );
   assert.ok(
-    Math.abs(plus.effectiveWeeklyShare! - 20 * pro20.effectiveWeeklyShare!) <
+    Math.abs(plus.effectiveWeeklyShare! - 10 * pro20.effectiveWeeklyShare!) <
       1e-12,
   );
 });
@@ -69,8 +69,8 @@ test("one quota weight scales across 1x, 5x, and 20x plan capacities", () => {
 test("derived weekly share, short share, and endurance follow the V3 formulas", () => {
   const evaluated = evaluateRecords(
     [record({ benchmarkCostEquivalent: 1, benchmarkMinutes: 10 })],
-    "pro20",
-    context("pro20", {
+    "pro200",
+    context("pro200", {
       shortWindow: { ratio: 0.2, exposure: 0, status: "baseline" },
       workload: {
         alpha: 2,
@@ -91,13 +91,13 @@ test("derived weekly share, short share, and endurance follow the V3 formulas", 
 });
 
 test("short-window disabled removes the H metric and does not create a hidden gate", () => {
-  const evaluated = evaluateRecords([record()], "pro5")[0];
+  const evaluated = evaluateRecords([record()], "pro100")[0];
   assert.equal(evaluated.enduranceUtility, null);
   assert.equal(evaluated.shortWindowEnduranceMinutes, null);
   const scored = scoreRecords(
     [evaluated],
     "budget",
-    createDefaultCalibrationContext("pro5"),
+    createDefaultCalibrationContext("pro100"),
   )[0];
   assert.ok(Number.isFinite(scored.strategyScore));
 });
@@ -181,13 +181,13 @@ test("alpha worsens burden and endurance while beta changes effective time and a
 
 test("utility values are candidate-set independent", () => {
   const candidate = record({ key: "candidate" });
-  const alone = evaluateRecords([candidate], "pro20")[0];
+  const alone = evaluateRecords([candidate], "pro200")[0];
   const withOther = evaluateRecords(
     [
       candidate,
       record({ key: "other", qualityIq: 130, benchmarkCostEquivalent: 9 }),
     ],
-    "pro20",
+    "pro200",
   )[0];
   assert.equal(alone.qualityUtility, withOther.qualityUtility);
   assert.equal(alone.timeUtility, withOther.timeUtility);
@@ -195,18 +195,18 @@ test("utility values are candidate-set independent", () => {
 });
 
 test("non-quality score is monotonic in each favorable dimension", () => {
-  const base = evaluateRecords([record()], "pro20")[0];
+  const base = evaluateRecords([record()], "pro200")[0];
   const betterQuality = evaluateRecords(
     [record({ qualityIq: 104 })],
-    "pro20",
+    "pro200",
   )[0];
   const slower = evaluateRecords(
     [record({ benchmarkMinutes: 20 })],
-    "pro20",
+    "pro200",
   )[0];
   const heavier = evaluateRecords(
     [record({ benchmarkCostEquivalent: 2 })],
-    "pro20",
+    "pro200",
   )[0];
   const basePlus = evaluateRecords([record()], "plus")[0];
   const longerEndurance = evaluateRecords(
@@ -217,49 +217,50 @@ test("non-quality score is monotonic in each favorable dimension", () => {
     scoreRecords(
       [betterQuality],
       "effectiveness",
-      createDefaultCalibrationContext("pro20"),
+      createDefaultCalibrationContext("pro200"),
     )[0].strategyScore >=
       scoreRecords(
         [base],
         "effectiveness",
-        createDefaultCalibrationContext("pro20"),
+        createDefaultCalibrationContext("pro200"),
       )[0].strategyScore,
   );
   assert.ok(
     scoreRecords(
       [slower],
       "effectiveness",
-      createDefaultCalibrationContext("pro20"),
+      createDefaultCalibrationContext("pro200"),
     )[0].strategyScore <
       scoreRecords(
         [base],
         "effectiveness",
-        createDefaultCalibrationContext("pro20"),
+        createDefaultCalibrationContext("pro200"),
       )[0].strategyScore,
   );
   assert.ok(
     scoreRecords(
       [heavier],
       "effectiveness",
-      createDefaultCalibrationContext("pro20"),
+      createDefaultCalibrationContext("pro200"),
     )[0].strategyScore <
       scoreRecords(
         [base],
         "effectiveness",
-        createDefaultCalibrationContext("pro20"),
+        createDefaultCalibrationContext("pro200"),
       )[0].strategyScore,
   );
   assert.ok(longerEndurance.enduranceUtility! >= basePlus.enduranceUtility!);
 });
 
-test("IQ 96 has no special qualification gate and IQ below 70 remains excluded", () => {
-  const contextValue = createDefaultCalibrationContext("pro20");
+test("IQ 96 has no special qualification gate and scores below 50 remain excluded", () => {
+  const contextValue = createDefaultCalibrationContext("pro200");
   const candidates = evaluateRecords(
     [
       record({ key: "95", qualityIq: 95 }),
-      record({ key: "69", qualityIq: 69 }),
+      record({ key: "49", qualityIq: 49 }),
+      record({ key: "50", qualityIq: 50 }),
     ],
-    "pro20",
+    "pro200",
   );
   assert.equal(
     evaluateCandidateEligibility(candidates[0], contextValue).eligible,
@@ -269,6 +270,10 @@ test("IQ 96 has no special qualification gate and IQ below 70 remains excluded",
     evaluateCandidateEligibility(candidates[1], contextValue).reason,
     "below-iq-floor",
   );
+  assert.equal(
+    evaluateCandidateEligibility(candidates[2], contextValue).eligible,
+    true,
+  );
 });
 
 test("Plus applies the 5h safety gate at 50% while Pro plans do not", () => {
@@ -277,7 +282,7 @@ test("Plus applies the 5h safety gate at 50% while Pro plans do not", () => {
       [
         record({
           key: `short-${shortShare}`,
-          benchmarkCostEquivalent: shortShare * 0.155,
+          benchmarkCostEquivalent: shortShare * 0.155 * 2,
         }),
       ],
       "plus",
@@ -305,12 +310,12 @@ test("Plus applies the 5h safety gate at 50% while Pro plans do not", () => {
   );
   const proCandidate = evaluateRecords(
     [record({ benchmarkCostEquivalent: 0.51 * 0.155 })],
-    "pro5",
+    "pro100",
   )[0];
   assert.equal(
     evaluateCandidateEligibility(
       proCandidate,
-      createDefaultCalibrationContext("pro5"),
+      createDefaultCalibrationContext("pro100"),
     ).eligible,
     true,
   );
@@ -338,13 +343,13 @@ test("quality winner is constrained to the highest four-IQ band but exact IQ rem
         benchmarkMinutes: 1,
       }),
     ],
-    "pro20",
+    "pro200",
   );
   const ordered = sortScoredRecords(
     scoreRecords(
       candidates,
       "quality",
-      createDefaultCalibrationContext("pro20"),
+      createDefaultCalibrationContext("pro200"),
     ),
     "quality",
   );
@@ -368,7 +373,7 @@ test("practical dominance uses tolerances and rejects a one-IQ but much heavier 
         benchmarkMinutes: 14,
       }),
     ],
-    "pro20",
+    "pro200",
   );
   assert.equal(practicalDominates(candidates[1], candidates[0], false), false);
   assert.equal(practicalDominates(candidates[0], candidates[1], false), true);
@@ -384,7 +389,7 @@ test("a low-burden but much slower candidate remains an independent trade-off", 
         benchmarkMinutes: 100,
       }),
     ],
-    "pro20",
+    "pro200",
   );
   assert.equal(practicalDominates(candidates[1], candidates[0], false), false);
 });
@@ -435,10 +440,10 @@ test("input permutation does not change ranking", () => {
       benchmarkCostEquivalent: 0.5,
     }),
   ];
-  const contextValue = createDefaultCalibrationContext("pro20");
+  const contextValue = createDefaultCalibrationContext("pro200");
   const first = sortScoredRecords(
     scoreRecords(
-      evaluateRecords(records, "pro20"),
+      evaluateRecords(records, "pro200"),
       "effectiveness",
       contextValue,
     ),
@@ -446,7 +451,7 @@ test("input permutation does not change ranking", () => {
   );
   const second = sortScoredRecords(
     scoreRecords(
-      evaluateRecords([records[2], records[0], records[1]], "pro20"),
+      evaluateRecords([records[2], records[0], records[1]], "pro200"),
       "effectiveness",
       contextValue,
     ),
@@ -461,8 +466,8 @@ test("input permutation does not change ranking", () => {
 test("strong quota calibration can exclude actual resource infeasibility", () => {
   const candidate = evaluateRecords(
     [record({ benchmarkCostEquivalent: 100 })],
-    "pro20",
-    context("pro20", {
+    "pro200",
+    context("pro200", {
       workload: {
         alpha: 1,
         beta: 1,
@@ -476,7 +481,7 @@ test("strong quota calibration can exclude actual resource infeasibility", () =>
   assert.equal(
     evaluateCandidateEligibility(
       candidate,
-      context("pro20", {
+      context("pro200", {
         workload: {
           alpha: 1,
           beta: 1,
@@ -507,7 +512,7 @@ test("plan and workload scale change relative score gaps", () => {
   });
 
   function gap(alpha: number) {
-    const ctx = context("pro20", {
+    const ctx = context("pro200", {
       workload: {
         alpha,
         beta: 1,
@@ -518,7 +523,7 @@ test("plan and workload scale change relative score gaps", () => {
       },
     });
 
-    const evaluated = evaluateRecords([fastHeavy, slowCheap], "pro20", ctx);
+    const evaluated = evaluateRecords([fastHeavy, slowCheap], "pro200", ctx);
 
     const scored = scoreRecords(evaluated, "effectiveness", ctx);
 

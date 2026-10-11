@@ -1,15 +1,13 @@
 import { HOST_ID, STRATEGY_KEYS, SUBSCRIPTION_KEYS } from "./config.js";
 import {
   createEmptyCalibrationStore,
-  migrateCalibrationV1,
   type CalibrationStoreV2,
   type ShortWindowObservation,
   type WorkloadCalibrationObservation,
 } from "./calibration.js";
 
 const STORAGE_KEY = `${HOST_ID}:preferences`;
-const CALIBRATION_KEY = `${HOST_ID}:quota-calibration:v2`;
-const LEGACY_CALIBRATION_KEY = `${HOST_ID}:quota-calibration:v1`;
+const CALIBRATION_KEY = `${HOST_ID}:quota-calibration:radar-bench-v1`;
 
 export interface UserPreferences {
   subscription?: string;
@@ -31,6 +29,8 @@ export function loadPreferences(): UserPreferences {
     if (!isObject(value)) {
       return {};
     }
+    if (value.subscription === "pro5") value.subscription = "pro100";
+    if (value.subscription === "pro20") value.subscription = "pro200";
     return {
       subscription:
         typeof value.subscription === "string" &&
@@ -100,21 +100,7 @@ export function loadCalibrationStore(): CalibrationStoreV2 {
         ) as WorkloadCalibrationObservation[],
       };
     }
-    const legacy = store.getItem(LEGACY_CALIBRATION_KEY);
-    if (!legacy) return createEmptyCalibrationStore();
-    const migrated = migrateCalibrationV1(JSON.parse(legacy));
-    if (!migrated) return createEmptyCalibrationStore();
-    store.setItem(CALIBRATION_KEY, JSON.stringify(migrated));
-    const check: unknown = JSON.parse(store.getItem(CALIBRATION_KEY) ?? "null");
-    if (
-      validStore(check) &&
-      check.shortWindowObservations.length ===
-        migrated.shortWindowObservations.length &&
-      check.workloadObservations.length === migrated.workloadObservations.length
-    ) {
-      store.removeItem(LEGACY_CALIBRATION_KEY);
-    }
-    return migrated;
+    return createEmptyCalibrationStore();
   } catch {
     return createEmptyCalibrationStore();
   }
@@ -163,10 +149,5 @@ export function deleteCalibrationObservation(id: string): CalibrationStoreV2 {
 export function clearCalibration(): CalibrationStoreV2 {
   const empty = createEmptyCalibrationStore();
   saveCalibrationStore(empty);
-  try {
-    storage()?.removeItem(LEGACY_CALIBRATION_KEY);
-  } catch {
-    // The current v2 store is still safe to use if deletion is blocked.
-  }
   return empty;
 }

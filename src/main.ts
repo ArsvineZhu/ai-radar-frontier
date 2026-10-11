@@ -1,6 +1,5 @@
 import {
   DEFAULT_STRATEGY,
-  DEEPSWE_MODE,
   HOST_ID,
   IQ_MINIMUM,
   GRID_PREVIEW_CARD_LIMIT,
@@ -494,6 +493,22 @@ function renderData(
   const grid = getElement<HTMLElement>(state, SELECTORS.grid);
   const shell = getElement<HTMLElement>(state, SELECTORS.gridShell);
   if (!root || !grid) return;
+  const progress = state.shadow?.querySelector<HTMLElement>(
+    "[data-cr-load-status]",
+  );
+  if (progress) {
+    const messages: string[] = [];
+    if (snapshot.cachedAt)
+      messages.push(
+        copy.cachedDataNote(snapshot.cachedAt, Boolean(snapshot.refreshFailed)),
+      );
+    if (snapshot.pendingTierCount)
+      messages.push(copy.loadingDataNote(snapshot.pendingTierCount));
+    else if (snapshot.missingTierCount)
+      messages.push(copy.partialDataNote(snapshot.missingTierCount));
+    progress.hidden = messages.length === 0;
+    progress.textContent = messages.join(" · ");
+  }
   const context = buildCalibrationSummary(
     calibrationStore,
     state.subscription as SubscriptionKey,
@@ -622,6 +637,17 @@ function renderData(
     fallen,
   );
   updateDisclosure(state, copy, currentResult, snapshot.records.length);
+  if (snapshot.missingTierCount) {
+    const notes = getElement<HTMLElement>(state, SELECTORS.disclosureNotes);
+    notes?.append(
+      makeElement(
+        "p",
+        "cr-exclusion-note",
+        copy.partialDataNote(snapshot.missingTierCount),
+      ),
+    );
+    if (notes) notes.hidden = false;
+  }
   announce(
     state,
     copy.announced(
@@ -747,6 +773,11 @@ function loadRadarData(
   radarState.request = loadRadarSnapshot(
     copy,
     document.querySelector<HTMLElement>(SELECTORS.fastSource),
+    (snapshot) => {
+      radarState.snapshot = snapshot.records.length ? snapshot : null;
+      radarState.error = null;
+      renderCallback("data-refresh");
+    },
   )
     .then((snapshot) => {
       radarState.snapshot = snapshot;
@@ -766,17 +797,16 @@ function loadRadarData(
 function openOriginalDetail(record: ScoredRecord): void {
   const baseRecord = record.baseRecord || record;
   const source = document.querySelector<HTMLElement>(SELECTORS.source);
-  const original =
-    source?.dataset.efficiencyMode === DEEPSWE_MODE
-      ? Array.from(source.querySelectorAll<HTMLElement>(SELECTORS.card)).find(
-          (card) =>
-            card.dataset.model === baseRecord.model &&
-            card.dataset.effort === baseRecord.effort,
-        )
-      : null;
+  const original = source?.hasAttribute("data-radar-bench")
+    ? Array.from(source.querySelectorAll<HTMLElement>(SELECTORS.card)).find(
+        (card) =>
+          card.dataset.model === baseRecord.model &&
+          card.dataset.effort === baseRecord.effort,
+      )
+    : null;
   if (!(original instanceof HTMLElement)) {
     window.open(
-      "https://deng.codexradar.com/?harness=codex#efficiency-charts",
+      "https://codexradar.com/?station=codex#intelligence-efficiency",
       "_blank",
       "noopener,noreferrer",
     );

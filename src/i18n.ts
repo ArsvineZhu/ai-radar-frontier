@@ -36,23 +36,23 @@ const TRANSLATIONS = freezeRecord({
     title: "Efficiency Frontier",
     infoAria: "Frontier model explanation",
     frontierExplanation:
-      "Uses current public DeepSWE measurements, one plan-wide quota scale, and optional local workload calibration. Standard and Fast remain separate choices.",
+      "Uses current public Radar Bench measurements, one plan-wide quota scale, and optional local workload calibration. Standard and Fast remain separate choices.",
     sort: "Strategy",
     subscription: "Subscription",
     sorting: "Sorting",
     fastSection: "Fast",
     calibration: "Calibration",
     openCalibration: "Configure local calibration",
-    gridAria: "DeepSWE recommendation groups for the active strategy",
+    gridAria: "Radar Bench recommendation groups for the active strategy",
     details: "Details",
     notes: "Notes",
-    loading: "Loading DeepSWE software-engineering data…",
+    loading: "Loading Radar Bench data…",
     originalDetails: "Open Radar data",
-    earlySamples: (count: number) => `Early · n=${count}`,
+    earlySamples: (count: number) => `Provisional · ${count} tasks`,
     earlySamplesTitle: (count: number) =>
-      `DeepSWE currently has ${count} observations for this tier; IQ may change as more tasks are measured.`,
-    quotaEstimateTitle: (count: number) =>
-      `Estimated from ${count} public DeepSWE task prices and quota multipliers.`,
+      `Radar Bench currently covers ${count} tasks for this tier; score may change as more tasks are measured.`,
+    quotaEstimateTitle: (_count: number) =>
+      `Historical quota reference with a monthly-price plan prior; current capacity requires local calibration.`,
     quotaAnchorTitle: "Calibrated with this model's public 20x quota capacity.",
     fast: "Fast",
     fastInclude: "Include Fast",
@@ -67,6 +67,7 @@ const TRANSLATIONS = freezeRecord({
     benchmark: "Benchmark",
     calibrated: "Typical task",
     quality: "Quality",
+    scoreLabel: "Score",
     quota: "Weekly burden",
     quotaShortWindow: "Per task / 5h",
     quotaWeek: "Per task / week",
@@ -90,7 +91,7 @@ const TRANSLATIONS = freezeRecord({
     },
     strategyDescriptions: {
       quality:
-        "Stay within the highest 4-IQ band, then compare time, weekly burden, and endurance.",
+        "Stay within the highest 4-point band, then compare time, weekly burden, and endurance.",
       effectiveness:
         "Balance quality, effective task time, weekly burden, and short-window endurance.",
       budget:
@@ -98,19 +99,36 @@ const TRANSLATIONS = freezeRecord({
       speed:
         "Prefer shorter effective task time while retaining useful quality and quota endurance.",
     },
-    subscriptions: { plus: "Plus", pro5: "Pro 5x", pro20: "Pro 20x" },
-    subscriptionMultipliers: { plus: "1×", pro5: "5×", pro20: "20×" },
-    errorTitle: "Unable to read DeepSWE software-engineering data",
-    errorLoading: "Could not load public DeepSWE data. Try again in a moment.",
+    subscriptions: {
+      plus: "Plus",
+      pro100: "Pro 100",
+      pro200: "Pro 200",
+      pro500: "Pro 500",
+    },
+    subscriptionMultipliers: {
+      plus: "Plus",
+      pro100: "Pro 100",
+      pro200: "Pro 200",
+      pro500: "Pro 500",
+    },
+    errorTitle: "Unable to read Radar Bench data",
+    errorLoading:
+      "Could not load public Radar Bench data. Try again in a moment.",
     refresh: "Retry",
-    noModelsTitle: `No model meets IQ ${IQ_MINIMUM}`,
-    noModelsDescription: `Current models below IQ ${IQ_MINIMUM} are retained in the details; no automatic recommendation is possible.`,
+    cachedDataNote: (at: string, failed: boolean) =>
+      `Includes recent snapshots (${new Date(at).toLocaleString("en-GB")})${failed ? "; live refresh failed" : ""}`,
+    loadingDataNote: (count: number) =>
+      `${count} tiers are still loading; recommendations update as data arrives.`,
+    partialDataNote: (count: number) =>
+      `${count} tiers could not provide complete current measurements; retry to reload.`,
+    noModelsTitle: `No model meets score ${IQ_MINIMUM}`,
+    noModelsDescription: `Current models below score ${IQ_MINIMUM} are retained in the details; no automatic recommendation is possible.`,
     noValidTitle: "No valid models to display",
     noValidDescription:
       "The current source did not provide all required comparable measurements.",
     noQuotaModelsTitle: "No complete automatic recommendation",
     noQuotaModelsDescription:
-      "A usable public task multiplier is required for quota scoring; unavailable candidates remain in details.",
+      "A usable quota reference is required for quota scoring; unavailable candidates remain in details.",
     noDominatedTitle: "No excluded practical duplicate",
     noDominatedDescription:
       "Pareto is diagnostic only. Practical compression is applied after ranking.",
@@ -119,9 +137,9 @@ const TRANSLATIONS = freezeRecord({
     fastNote: ({ included, exact, model, group, omitted }: any) =>
       `Fast: ${included} variants included; ${exact} exact, ${model} same-model, ${group} fastGroup evidence; ${omitted} omitted for insufficient evidence. Fast uses a transferred E2E estimate and ${FAST_COST_MULTIPLIER}× benchmark-equivalent cost.`,
     lowIqNote: (count: number) =>
-      `${count} candidate${count === 1 ? "" : "s"} below IQ ${IQ_MINIMUM}.`,
+      `${count} candidate${count === 1 ? "" : "s"} below score ${IQ_MINIMUM}.`,
     iqFloorReason: (iq: number) =>
-      `IQ ${iq} is below the automatic floor of ${IQ_MINIMUM}.`,
+      `Score ${iq.toFixed(1)} is below the automatic floor of ${IQ_MINIMUM}.`,
     invalidNote: (count: number) =>
       `${count} candidate${count === 1 ? "" : "s"} lacked valid benchmark data.`,
     resourceNote: (weekly: number, short: number) =>
@@ -129,12 +147,12 @@ const TRANSLATIONS = freezeRecord({
     practicalNote: (count: number) =>
       `${count} ranked candidate${count === 1 ? "" : "s"} were practically dominated by an earlier, materially comparable choice.`,
     quotaDataNote:
-      "The card uses the active 5h window scale for Plus and the weekly scale for Pro. Hover shows the other scale; both use one public plan-capacity formula.",
+      "The card uses the active 5h window scale for Plus and the weekly scale for Pro. Hover shows the other scale; quota values use historical anchors and monthly-price capacity priors until locally calibrated.",
     qualityDataNote:
-      "Quality uses current DeepSWE software-engineering IQ. DeepSWE is a calibration workload, not a claim about the exact user's task.",
+      "Quality uses current Radar Bench score. Radar Bench is a calibration workload, not a claim about the exact user's task.",
     calibrationNote:
       "Calibration stays in this browser only. It is never uploaded.",
-    benchmarkLabel: (value: string) => `DeepSWE-equivalent ${value}`,
+    benchmarkLabel: (value: string) => `Radar Bench-equivalent ${value}`,
     calibratedLabel: (value: string) => `Typical-task ${value}`,
     quotaValue: (value: number | null) =>
       value === null ? "Unavailable" : `${percent(value)} / week`,
@@ -164,7 +182,7 @@ const TRANSLATIONS = freezeRecord({
         : value >= 60
           ? `${(value / 60).toFixed(1)}h`
           : `${value.toFixed(1)} min`,
-    quotaReason: "No usable public task multiplier for this model tier.",
+    quotaReason: "No usable quota reference for this model tier.",
     weeklyResourceReason:
       "Calibrated typical-task share reaches the weekly capacity.",
     shortResourceReason:
@@ -211,7 +229,7 @@ const TRANSLATIONS = freezeRecord({
       originalDetails,
       alternatives,
     }: any) =>
-      `${rankLabel}, ${label}${modeLabel}${winnerText}${fastDescription}, ${strategyLabel}: ${strategyDescription}, IQ ${iq}, quality ${qualityMargin}, weekly burden ${quota}, ${time}, ${endurance}${alternatives ? `, ${alternatives}` : ""}, ${originalDetails}`,
+      `${rankLabel}, ${label}${modeLabel}${winnerText}${fastDescription}, ${strategyLabel}: ${strategyDescription}, score ${iq}, quality ${qualityMargin}, weekly burden ${quota}, ${time}, ${endurance}${alternatives ? `, ${alternatives}` : ""}, ${originalDetails}`,
     ariaRank: (rank: number) => `Rank ${rank}`,
     ariaPreferred: (labels: string[]) =>
       labels.length ? `, ${labels.join(", ")}` : "",
@@ -265,23 +283,23 @@ const TRANSLATIONS = freezeRecord({
     title: "效率前沿",
     infoAria: "前沿模型说明",
     frontierExplanation:
-      "使用当前 DeepSWE 软件工程数据、统一的套餐额度尺度和可选的本地校准；Standard 与 Fast 始终是独立选择。",
+      "使用当前雷达 Bench 数据、统一的套餐额度尺度和可选的本地校准；Standard 与 Fast 始终是独立选择。",
     sort: "策略",
     subscription: "订阅",
     sorting: "排序",
     fastSection: "Fast",
     calibration: "校准",
     openCalibration: "配置本地校准",
-    gridAria: "当前策略的 DeepSWE 推荐组",
+    gridAria: "当前策略的 Radar Bench 推荐组",
     details: "说明",
     notes: "说明",
-    loading: "正在读取 DeepSWE 软件工程数据…",
+    loading: "正在读取雷达 Bench 数据…",
     originalDetails: "打开雷达数据",
-    earlySamples: (count: number) => `早期 · ${count} 次`,
+    earlySamples: (count: number) => `暂定 · ${count} 题`,
     earlySamplesTitle: (count: number) =>
-      `该档 DeepSWE 当前有 ${count} 次观察；随着任务覆盖增加，IQ 可能变化。`,
-    quotaEstimateTitle: (count: number) =>
-      `根据 ${count} 道公开 DeepSWE 任务的费用和额度倍率估算。`,
+      `该档雷达 Bench 当前覆盖 ${count} 题；随着任务覆盖增加，雷达分可能变化。`,
+    quotaEstimateTitle: (_count: number) =>
+      `历史额度参考与月费比例先验；当前容量需本地校准。`,
     quotaAnchorTitle: "使用该型号公开的 20x 额度容量校准。",
     fast: "Fast",
     fastInclude: "包含 Fast",
@@ -294,6 +312,7 @@ const TRANSLATIONS = freezeRecord({
     benchmark: "基准",
     calibrated: "典型任务",
     quality: "质量",
+    scoreLabel: "雷达分",
     quota: "周额度负担",
     quotaShortWindow: "每任务 / 5h",
     quotaWeek: "每任务 / 周",
@@ -316,18 +335,34 @@ const TRANSLATIONS = freezeRecord({
       speed: { label: "速度", winnerLabel: "速度" },
     },
     strategyDescriptions: {
-      quality: "先保留最高质量 4 IQ 带，再比较耗时、周额度负担和短窗口耐力。",
+      quality: "先保留最高质量 4 分带，再比较耗时、周额度负担和短窗口耐力。",
       effectiveness: "综合比较质量、典型任务耗时、周额度负担和短窗口耐力。",
       budget: "在保留有用软件工程质量的同时，优先降低典型任务的周额度负担。",
       speed: "在保留有用质量的同时，优先降低典型任务耗时并保持额度耐力。",
     },
-    subscriptions: { plus: "Plus", pro5: "Pro 5x", pro20: "Pro 20x" },
-    subscriptionMultipliers: { plus: "1×", pro5: "5×", pro20: "20×" },
-    errorTitle: "暂时无法读取 DeepSWE 软件工程数据",
-    errorLoading: "无法读取公开 DeepSWE 数据，请稍后重试。",
+    subscriptions: {
+      plus: "Plus",
+      pro100: "Pro 100",
+      pro200: "Pro 200",
+      pro500: "Pro 500",
+    },
+    subscriptionMultipliers: {
+      plus: "Plus",
+      pro100: "Pro 100",
+      pro200: "Pro 200",
+      pro500: "Pro 500",
+    },
+    errorTitle: "暂时无法读取 雷达 Bench数据",
+    errorLoading: "无法读取公开雷达 Bench 数据，请稍后重试。",
     refresh: "重试",
-    noModelsTitle: `没有达到 IQ ${IQ_MINIMUM}`,
-    noModelsDescription: `当前低于 IQ ${IQ_MINIMUM} 的模型仍保留在说明中，无法自动推荐。`,
+    cachedDataNote: (at: string, failed: boolean) =>
+      `含最近已读快照（${new Date(at).toLocaleString("zh-CN")}）${failed ? "；实时刷新失败" : ""}`,
+    loadingDataNote: (count: number) =>
+      `还有 ${count} 个档位读取中；推荐随数据更新。`,
+    partialDataNote: (count: number) =>
+      `${count} 个档位暂未提供完整当前数据；重试可重新读取。`,
+    noModelsTitle: `没有达到雷达分 ${IQ_MINIMUM}`,
+    noModelsDescription: `当前低于雷达分 ${IQ_MINIMUM} 的模型仍保留在说明中，无法自动推荐。`,
     noValidTitle: "暂时没有可展示的有效模型",
     noValidDescription: "当前原站没有提供完整的可比较测量值。",
     noQuotaModelsTitle: "没有完整的自动推荐",
@@ -339,19 +374,20 @@ const TRANSLATIONS = freezeRecord({
     dominanceCheck: "推荐说明",
     fastNote: ({ included, exact, model, group, omitted }: any) =>
       `Fast：${included} 个变体纳入；${exact} 个有精确证据，${model} 个使用同模型证据，${group} 个使用 fastGroup 证据；${omitted} 个因证据不足未生成。Fast 使用迁移的 E2E 耗时估计和 ${FAST_COST_MULTIPLIER} 倍基准等价费用。`,
-    lowIqNote: (count: number) => `${count} 个候选低于 IQ ${IQ_MINIMUM}。`,
-    iqFloorReason: (iq: number) => `IQ ${iq} 低于自动推荐下限 ${IQ_MINIMUM}。`,
+    lowIqNote: (count: number) => `${count} 个候选低于雷达分 ${IQ_MINIMUM}。`,
+    iqFloorReason: (iq: number) =>
+      `雷达分 ${iq.toFixed(1)} 低于自动推荐下限 ${IQ_MINIMUM}。`,
     invalidNote: (count: number) => `${count} 个候选缺少有效基准数据。`,
     resourceNote: (weekly: number, short: number) =>
       `${weekly + short} 个候选达到已校准的资源容量，因此不自动推荐。`,
     practicalNote: (count: number) =>
       `${count} 个已排序候选被更早且在决策容差内更轻/更快的选择实用支配。`,
     quotaDataNote:
-      "Plus 主卡使用当前 5h 窗口尺度，Pro 使用周额度尺度；hover 会补充另一种尺度。两者都按统一套餐容量公式计算，基准等价费用不是用户账单。",
+      "Plus 主卡使用当前 5h 窗口尺度，Pro 使用周额度尺度；hover 会补充另一种尺度。额度使用历史参考与月费比例先验，均为估算；可用本地观察校准。",
     qualityDataNote:
-      "质量使用当前 DeepSWE 软件工程 IQ。DeepSWE 是校准工作负载，不等于用户的具体任务。",
+      "质量使用当前雷达 Bench 分数。Radar Bench 是校准工作负载，不等于用户的具体任务。",
     calibrationNote: "校准只保存在本浏览器中，不会上传。",
-    benchmarkLabel: (value: string) => `DeepSWE 等价${value}`,
+    benchmarkLabel: (value: string) => `Radar Bench 等价${value}`,
     calibratedLabel: (value: string) => `典型任务${value}`,
     quotaValue: (value: number | null) =>
       value === null ? "不可用" : `${percent(value)} / 周`,
@@ -424,7 +460,7 @@ const TRANSLATIONS = freezeRecord({
       originalDetails,
       alternatives,
     }: any) =>
-      `${rankLabel}，${label}${modeLabel}${winnerText}${fastDescription}，${strategyLabel}：${strategyDescription}，IQ ${iq}，质量 ${qualityMargin}，周额度负担 ${quota}，${time}，${endurance}${alternatives ? `，${alternatives}` : ""}，${originalDetails}`,
+      `${rankLabel}，${label}${modeLabel}${winnerText}${fastDescription}，${strategyLabel}：${strategyDescription}，雷达分 ${iq}，质量 ${qualityMargin}，周额度负担 ${quota}，${time}，${endurance}${alternatives ? `，${alternatives}` : ""}，${originalDetails}`,
     ariaRank: (rank: number) => `第 ${rank} 位`,
     ariaPreferred: (labels: string[]) =>
       labels.length ? `，${labels.join("、")}` : "",

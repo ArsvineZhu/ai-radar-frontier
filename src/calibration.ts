@@ -1,5 +1,5 @@
 import { WORKLOAD_ALPHA_PRIOR, PLAN_LIMITS } from "./config.js";
-import { planCapacity, quotaEntry } from "./quota.js";
+
 import type { SubscriptionKey } from "./scoring.js";
 
 type ShortWindowMethod = "full-window" | "paired-meter";
@@ -386,100 +386,4 @@ export function buildCalibrationSummary(
     shortWindowEnabled: config.enabled,
     shortWindowHours: config.hours,
   };
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function validPlan(value: unknown): value is SubscriptionKey {
-  return value === "plus" || value === "pro5" || value === "pro20";
-}
-
-function optionalNumber(value: unknown): number | undefined {
-  return finite(value) ? value : undefined;
-}
-
-export function migrateCalibrationV1(
-  value: unknown,
-): CalibrationStoreV2 | null {
-  const old = asRecord(value);
-  if (
-    old?.schemaVersion !== 1 ||
-    !Array.isArray(old.shortWindowObservations) ||
-    !Array.isArray(old.workloadObservations)
-  ) {
-    return null;
-  }
-  const migrated = createEmptyCalibrationStore();
-  for (const raw of old.shortWindowObservations) {
-    const entry = asRecord(raw);
-    if (!entry || !validPlan(entry.plan)) continue;
-    const observation = createShortWindowObservation({
-      plan: entry.plan,
-      method: entry.method === "paired-meter" ? "paired-meter" : "full-window",
-      fullWindows: optionalNumber(entry.fullWindows),
-      shortBefore: optionalNumber(entry.shortBefore),
-      shortAfter: optionalNumber(entry.shortAfter),
-      weeklyBefore: Number(entry.weeklyBefore),
-      weeklyAfter: Number(entry.weeklyAfter),
-      id: typeof entry.id === "string" ? entry.id : undefined,
-      recordedAt:
-        typeof entry.recordedAt === "string" ? entry.recordedAt : undefined,
-    });
-    if (entry.status === "rejected") {
-      observation.status = "rejected";
-      observation.estimatedKappa = null;
-      observation.rejectionReason =
-        typeof entry.rejectionReason === "string"
-          ? entry.rejectionReason
-          : "legacy_rejected";
-    }
-    migrated.shortWindowObservations.push(observation);
-  }
-  for (const raw of old.workloadObservations) {
-    const entry = asRecord(raw);
-    if (!entry || !validPlan(entry.plan)) continue;
-    const model = typeof entry.model === "string" ? entry.model : "";
-    const effort = typeof entry.effort === "string" ? entry.effort : "";
-    const quota = quotaEntry(model, effort);
-    const observation = createWorkloadObservation(
-      {
-        plan: entry.plan,
-        model,
-        family: typeof entry.family === "string" ? entry.family : "",
-        effort,
-        mode: entry.mode === "fast" ? "fast" : "standard",
-        benchmarkCostEquivalent: Number(entry.benchmarkCostEquivalent),
-        benchmarkMinutes: Number(entry.benchmarkMinutes),
-        quotaWeight: quota?.quotaWeight ?? 0,
-        planCapacitySnapshot: planCapacity(entry.plan),
-        actualMinutes: Number(entry.actualMinutes),
-        weeklyBefore: optionalNumber(entry.weeklyBefore),
-        weeklyAfter: optionalNumber(entry.weeklyAfter),
-        shortBefore: optionalNumber(entry.shortBefore),
-        shortAfter: optionalNumber(entry.shortAfter),
-        weeklyUsage: optionalNumber(entry.weeklyUsage),
-        shortWindowUsage: optionalNumber(entry.shortWindowUsage),
-        representativeTask: entry.representativeTask === true,
-        id: typeof entry.id === "string" ? entry.id : undefined,
-        recordedAt:
-          typeof entry.recordedAt === "string" ? entry.recordedAt : undefined,
-      },
-      estimateKappa(entry.plan, migrated.shortWindowObservations).ratio,
-    );
-    if (entry.status === "rejected") {
-      observation.status = "rejected";
-      observation.alphaObservation = null;
-      observation.betaObservation = null;
-      observation.rejectionReason =
-        typeof entry.rejectionReason === "string"
-          ? entry.rejectionReason
-          : "legacy_rejected";
-    }
-    migrated.workloadObservations.push(observation);
-  }
-  return migrated;
 }

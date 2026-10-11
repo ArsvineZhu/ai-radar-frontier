@@ -128,6 +128,7 @@ export function createShellMarkup(
           </div>
         </div>
       </div>
+      <p class="cr-loading-status" data-cr-load-status hidden></p>
       <div class="cr-grid-shell" data-cr-grid-shell data-collapsed="false">
         <div class="cr-grid" data-cr-grid aria-label="${copy.gridAria}"></div>
         <div class="cr-grid-mask" data-cr-grid-mask aria-hidden="true"></div>
@@ -237,12 +238,12 @@ function formatMinutes(value: number, copy: Copy): string {
 
 function formatQualityMargin(value: number): string {
   const rounded = Math.round(value * 10) / 10;
-  if (rounded === 0) return "0 IQ";
+  if (rounded === 0) return "0 pt";
   const absolute = Math.abs(rounded);
   const formatted = Number.isInteger(absolute)
     ? String(absolute)
     : absolute.toFixed(1);
-  return `${rounded > 0 ? "+" : "−"}${formatted} IQ`;
+  return `${rounded > 0 ? "+" : "−"}${formatted} pt`;
 }
 
 function formatPercentDelta(value: number): string {
@@ -274,7 +275,7 @@ function renderMetric(label: string, value: string): HTMLElement {
 
 function renderIqValue(value: number): HTMLElement {
   const iq = makeElement("strong", "cr-iq");
-  const [integer, decimal] = String(value).split(".");
+  const [integer, decimal] = value.toFixed(1).split(".");
   iq.append(makeElement("span", "cr-iq-integer", integer));
   if (decimal !== undefined)
     iq.append(makeElement("span", "cr-iq-decimal", `.${decimal}`));
@@ -365,7 +366,7 @@ export function renderCard(
       modeLabel,
       winnerText,
       fastDescription,
-      iq: record.qualityIq,
+      iq: record.qualityIq.toFixed(1),
       qualityMargin: formatQualityMargin(record.qualityIq - IQ_REFERENCE),
       quota: quotaText,
       time: timeText,
@@ -425,7 +426,7 @@ export function renderCard(
 
   const iqRow = makeElement("div", "cr-iq-row");
   iqRow.append(
-    makeElement("span", "cr-iq-label", "IQ"),
+    makeElement("span", "cr-iq-label", copy.scoreLabel),
     renderIqValue(record.qualityIq),
   );
   const foot = makeElement("div", "cr-card-foot");
@@ -561,7 +562,7 @@ function recordDetails(
   const quotaLabel = shortWindowEnabled
     ? copy.quotaShortWindow
     : copy.quotaWeek;
-  return `IQ ${record.qualityIq} · benchmark equivalent ${formatBenchmarkCost(record.benchmarkCostEquivalent)} · ${time} · ${quotaLabel} ${quota}`;
+  return `${copy.scoreLabel} ${record.qualityIq.toFixed(1)} · benchmark equivalent ${formatBenchmarkCost(record.benchmarkCostEquivalent)} · ${time} · ${quotaLabel} ${quota}`;
 }
 
 function exclusionReason(

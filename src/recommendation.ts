@@ -150,7 +150,9 @@ export function buildStrategyResult(
   calibration?: CalibrationDerivedContext,
 ): StrategyResult {
   const plan: SubscriptionKey =
-    subscriptionKey === "pro5" || subscriptionKey === "pro20"
+    subscriptionKey === "pro100" ||
+    subscriptionKey === "pro200" ||
+    subscriptionKey === "pro500"
       ? subscriptionKey
       : "plus";
   const strategy: StrategyKey =

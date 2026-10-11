@@ -8,7 +8,6 @@ import {
   createWorkloadObservation,
   estimateKappa,
   estimateWorkload,
-  migrateCalibrationV1,
 } from "../src/calibration.js";
 import {
   clearCalibration,
@@ -31,15 +30,15 @@ function short(overrides: Record<string, unknown> = {}) {
 function workload(overrides: Record<string, unknown> = {}) {
   return createWorkloadObservation(
     {
-      plan: "pro20",
+      plan: "pro200",
       model: "gpt-6-astra",
       family: "astra",
       effort: "medium",
       mode: "standard",
       benchmarkCostEquivalent: 1,
       benchmarkMinutes: 10,
-      quotaWeight: QUOTA_REFERENCE.planCapacities.pro20 / 100,
-      planCapacitySnapshot: QUOTA_REFERENCE.planCapacities.pro20,
+      quotaWeight: QUOTA_REFERENCE.planCapacities.pro200 / 100,
+      planCapacitySnapshot: QUOTA_REFERENCE.planCapacities.pro200,
       actualMinutes: 20,
       representativeTask: true,
       id: "workload-test",
@@ -144,7 +143,7 @@ test("calibration is plan-specific for the short window and global for workload"
   store.shortWindowObservations.push(short());
   store.workloadObservations.push(workload());
   const plus = buildCalibrationSummary(store, "plus");
-  const pro5 = buildCalibrationSummary(store, "pro5");
+  const pro5 = buildCalibrationSummary(store, "pro100");
   assert.ok(Math.abs(plus.shortWindow.ratio - (0.155 + 0.15) / 2) < 1e-12);
   assert.equal(pro5.shortWindow.ratio, 0.155);
   assert.equal(plus.workload.beta, pro5.workload.beta);
@@ -167,7 +166,7 @@ test("corrupt local storage is safe and calibration reset preserves preferences"
   try {
     values.set("ai-radar-frontier-userscript:quota-calibration:v2", "not-json");
     assert.deepEqual(loadCalibrationStore(), createEmptyCalibrationStore());
-    savePreferences({ subscription: "pro5", fastEnabled: false });
+    savePreferences({ subscription: "pro100", fastEnabled: false });
     clearCalibration();
     assert.ok(values.has("ai-radar-frontier-userscript:preferences"));
   } finally {
@@ -177,101 +176,27 @@ test("corrupt local storage is safe and calibration reset preserves preferences"
   }
 });
 
-test("storage upgrades v1 raw observations once and removes the old key after verification", () => {
-  const values = new Map<string, string>();
-  const localStorage = {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => values.set(key, value),
-    removeItem: (key: string) => values.delete(key),
-    clear: () => values.clear(),
-    key: (_index: number) => null,
-    length: 0,
-  } as Storage;
-  const previous = (globalThis as Record<string, unknown>).window;
-  (globalThis as Record<string, unknown>).window = { localStorage };
-  try {
-    values.set(
-      "ai-radar-frontier-userscript:quota-calibration:v1",
+test("Radar Bench preserves legacy storage without reusing incompatible calibration", () => {
+  const previous = globalThis.window;
+  const values = new Map<string, string>([
+    [
+      "ai-radar-frontier-userscript:quota-calibration:v2",
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
+        workloadObservations: [{ alphaObservation: 9 }],
         shortWindowObservations: [],
-        workloadObservations: [
-          {
-            plan: "pro20",
-            model: "gpt-6-astra",
-            family: "astra",
-            effort: "medium",
-            mode: "standard",
-            benchmarkCostEquivalent: 1,
-            benchmarkMinutes: 10,
-            quotaBudget20x: 1847,
-            actualMinutes: 20,
-            weeklyUsage: 0.01,
-            representativeTask: true,
-            id: "legacy-entry",
-            recordedAt: "2026-09-20T10:00:00.000Z",
-            alphaObservation: 1,
-            betaObservation: 2,
-            status: "accepted",
-          },
-        ],
       }),
-    );
-    const upgraded = loadCalibrationStore();
-    assert.equal(upgraded.schemaVersion, 2);
-    assert.equal(upgraded.workloadObservations[0].id, "legacy-entry");
-    assert.ok(upgraded.workloadObservations[0].alphaObservation !== 1);
-    assert.equal(
-      values.has("ai-radar-frontier-userscript:quota-calibration:v1"),
-      false,
-    );
-    assert.equal(
-      JSON.parse(
-        values.get("ai-radar-frontier-userscript:quota-calibration:v2") ?? "{}",
-      ).schemaVersion,
-      2,
-    );
+    ],
+  ]);
+  Object.assign(globalThis, {
+    window: {
+      localStorage: { getItem: (key: string) => values.get(key) ?? null },
+    },
+  });
+  try {
+    assert.equal(loadCalibrationStore().workloadObservations.length, 0);
+    assert.ok(values.has("ai-radar-frontier-userscript:quota-calibration:v2"));
   } finally {
-    if (previous === undefined)
-      delete (globalThis as Record<string, unknown>).window;
-    else (globalThis as Record<string, unknown>).window = previous;
+    Object.assign(globalThis, { window: previous });
   }
-});
-
-test("v1 calibration observations are recomputed against the unified quota scale", () => {
-  const legacy = {
-    schemaVersion: 1,
-    shortWindowObservations: [
-      short({ id: "old-window", fullWindows: 3, weeklyAfter: 0.55 }),
-    ],
-    workloadObservations: [
-      {
-        plan: "pro20",
-        model: "gpt-6-astra",
-        family: "astra",
-        effort: "medium",
-        mode: "standard",
-        benchmarkCostEquivalent: 1,
-        benchmarkMinutes: 10,
-        quotaBudget20x: 1847,
-        actualMinutes: 20,
-        weeklyUsage: 0.01,
-        representativeTask: true,
-        id: "old-workload",
-        recordedAt: "2026-09-20T10:00:00.000Z",
-        alphaObservation: 1,
-        betaObservation: 2,
-        status: "accepted",
-      },
-    ],
-  };
-  const migrated = migrateCalibrationV1(legacy);
-  assert.ok(migrated);
-  assert.equal(migrated.schemaVersion, 2);
-  assert.equal(migrated.shortWindowObservations[0].id, "old-window");
-  const migratedWorkload = migrated.workloadObservations[0];
-  assert.equal(migratedWorkload.id, "old-workload");
-  assert.equal(migratedWorkload.betaObservation, 2);
-  assert.ok(migratedWorkload.quotaWeight > 0);
-  assert.notEqual(migratedWorkload.alphaObservation, 1);
 });

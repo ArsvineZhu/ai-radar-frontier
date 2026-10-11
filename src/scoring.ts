@@ -19,7 +19,7 @@ import type { CalibrationDerivedContext } from "./calibration.js";
 import { planCapacity } from "./quota.js";
 
 export type StrategyKey = "quality" | "effectiveness" | "budget" | "speed";
-export type SubscriptionKey = "plus" | "pro5" | "pro20";
+export type SubscriptionKey = "plus" | "pro100" | "pro200" | "pro500";
 type Mode = "standard" | "fast";
 export type FastEvidenceLevel = "exact" | "model" | "fastGroup";
 

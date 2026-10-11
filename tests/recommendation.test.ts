@@ -22,7 +22,7 @@ function record(overrides: Partial<ModelRecord> = {}): ModelRecord {
     index: 0,
     key: "gpt-6-astra::medium",
     sampleCount: 100,
-    quotaWeight: QUOTA_REFERENCE.planCapacities.pro20 / 1847,
+    quotaWeight: QUOTA_REFERENCE.planCapacities.pro200 / 1847,
     quotaValidTasks: 112,
     quotaSource: "measured-anchor",
     mode: "standard",
@@ -55,7 +55,7 @@ test("Fast is a separate candidate with unchanged quality, 2.5x cost, and transf
     [standard],
     estimator(2),
     "effectiveness",
-    "pro20",
+    "pro200",
     true,
   );
   const fast = result.orderedScored.find(
@@ -105,7 +105,7 @@ test("explicit GPT-6 Sol Fast evidence creates an exact candidate", () => {
     ],
     estimator,
     "effectiveness",
-    "pro20",
+    "pro200",
     true,
   );
   const fast = result.orderedScored.find(
@@ -125,7 +125,7 @@ test("Fast candidates are omitted when evidence is unavailable or Fast is disabl
     [record()],
     noEvidence,
     "effectiveness",
-    "pro20",
+    "pro200",
     true,
   );
   assert.equal(
@@ -137,7 +137,7 @@ test("Fast candidates are omitted when evidence is unavailable or Fast is disabl
     [record()],
     estimator(),
     "effectiveness",
-    "pro20",
+    "pro200",
     false,
   );
   assert.equal(
@@ -152,7 +152,7 @@ test("a measured ratio at or below one is retained as evidence", () => {
     [record()],
     estimator(0.94),
     "speed",
-    "pro20",
+    "pro200",
     true,
   );
   const fast = result.orderedScored.find(
@@ -321,7 +321,7 @@ test("quota-unavailable families are represented in exclusions and never score",
     ],
     estimator(),
     "budget",
-    "pro20",
+    "pro200",
     false,
   );
   assert.equal(
@@ -341,7 +341,7 @@ test("Plus does not label a short-window-risk candidate as a strategy winner", (
     [
       record({
         key: "astra-risk",
-        benchmarkCostEquivalent: 2,
+        benchmarkCostEquivalent: 4,
         qualityIq: 108,
       }),
       record({
@@ -384,7 +384,7 @@ test("practical compression happens after ranking while Pareto remains diagnosti
     ],
     estimator(),
     "effectiveness",
-    "pro20",
+    "pro200",
     false,
   );
   assert.ok(result.orderedScored.length >= result.orderedMeaningful.length);
@@ -402,12 +402,12 @@ test("strong calibrated resource infeasibility is hard exclusion, otherwise it r
     [candidate],
     estimator(),
     "budget",
-    "pro20",
+    "pro200",
     false,
   );
   assert.equal(weak.orderedScored.length, 1);
   const strongContext = {
-    ...createDefaultCalibrationContext("pro20"),
+    ...createDefaultCalibrationContext("pro200"),
     workload: {
       alpha: 1,
       beta: 1,
@@ -421,7 +421,7 @@ test("strong calibrated resource infeasibility is hard exclusion, otherwise it r
     [candidate],
     estimator(),
     "budget",
-    "pro20",
+    "pro200",
     false,
     strongContext,
   );
@@ -459,7 +459,7 @@ test("all plan and strategy combinations are deterministic on a compact fixture"
       label: "Luna max",
       qualityIq: 102,
       benchmarkCostEquivalent: 0.54,
-      quotaWeight: QUOTA_REFERENCE.planCapacities.pro20 / 1145,
+      quotaWeight: QUOTA_REFERENCE.planCapacities.pro200 / 1145,
     }),
     record({
       key: "luna-xhigh",
@@ -469,7 +469,7 @@ test("all plan and strategy combinations are deterministic on a compact fixture"
       label: "Luna xhigh",
       qualityIq: 87,
       benchmarkCostEquivalent: 0.34,
-      quotaWeight: QUOTA_REFERENCE.planCapacities.pro20 / 1145,
+      quotaWeight: QUOTA_REFERENCE.planCapacities.pro200 / 1145,
     }),
     record({
       key: "sol-medium",
@@ -479,10 +479,10 @@ test("all plan and strategy combinations are deterministic on a compact fixture"
       label: "Sol medium",
       qualityIq: 95,
       benchmarkCostEquivalent: 2.7,
-      quotaWeight: QUOTA_REFERENCE.planCapacities.pro20 / 1919,
+      quotaWeight: QUOTA_REFERENCE.planCapacities.pro200 / 1919,
     }),
   ];
-  for (const plan of ["plus", "pro5", "pro20"] as const) {
+  for (const plan of ["plus", "pro100", "pro200", "pro500"] as const) {
     for (const strategy of [
       "quality",
       "effectiveness",

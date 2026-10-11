@@ -775,6 +775,7 @@
 
 .cr-card-head {
   align-items: flex-start;
+  flex-direction: column;
 }
 
 .cr-card-model {
@@ -784,7 +785,8 @@
 }
 
 .cr-card-meta {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-width: 100%;
   gap: 8px;
   justify-content: flex-end;
   flex-wrap: wrap;
@@ -1939,4 +1941,10 @@
   .cr-disclosure > summary:focus-visible {
     outline-color: Highlight;
   }
+}
+
+.cr-loading-status {
+  color: var(--cr-muted);
+  font-size: 12px;
+  margin: 0 0 12px;
 }
